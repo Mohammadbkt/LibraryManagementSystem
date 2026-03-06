@@ -66,7 +66,6 @@ app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
-
-app.MapIdentityApi<User>();
+    
 
 app.Run();

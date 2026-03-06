@@ -46,7 +46,7 @@ namespace library.Data
         private static async Task SeedRolesAsync(RoleManager<IdentityRole> roleManager)
         {
             string[] roles = { "Admin", "Librarian", "Member" };
-            
+
             foreach (var role in roles)
             {
                 if (!await roleManager.RoleExistsAsync(role))
@@ -216,7 +216,7 @@ namespace library.Data
             var books = new List<Book>();
 
             // Helper to get category by name
-            Category? GetCategory(string name) => 
+            Category? GetCategory(string name) =>
                 categories.FirstOrDefault(c => c.Name == name);
 
             // 1. The Hobbit
@@ -229,12 +229,14 @@ namespace library.Data
                 BookAuthors = new List<BookAuthor>(),
                 BookCategories = new List<BookCategory>()
             };
-            book1.BookAuthors.Add(new BookAuthor { 
-                Author = authors.First(a => a.FullName.Contains("Tolkien")), 
-                AuthorOrder = 1 
+            book1.BookAuthors.Add(new BookAuthor
+            {
+                Author = authors.First(a => a.FullName.Contains("Tolkien")),
+                AuthorOrder = 1
             });
-            book1.BookCategories.Add(new BookCategory { 
-                Category = GetCategory("Fantasy")! 
+            book1.BookCategories.Add(new BookCategory
+            {
+                Category = GetCategory("Fantasy")!
             });
             books.Add(book1);
 
@@ -248,12 +250,14 @@ namespace library.Data
                 BookAuthors = new List<BookAuthor>(),
                 BookCategories = new List<BookCategory>()
             };
-            book2.BookAuthors.Add(new BookAuthor { 
-                Author = authors.First(a => a.FullName.Contains("Asimov")), 
-                AuthorOrder = 1 
+            book2.BookAuthors.Add(new BookAuthor
+            {
+                Author = authors.First(a => a.FullName.Contains("Asimov")),
+                AuthorOrder = 1
             });
-            book2.BookCategories.Add(new BookCategory { 
-                Category = GetCategory("Science Fiction")! 
+            book2.BookCategories.Add(new BookCategory
+            {
+                Category = GetCategory("Science Fiction")!
             });
             books.Add(book2);
 
@@ -267,12 +271,14 @@ namespace library.Data
                 BookAuthors = new List<BookAuthor>(),
                 BookCategories = new List<BookCategory>()
             };
-            book3.BookAuthors.Add(new BookAuthor { 
-                Author = authors.First(a => a.FullName.Contains("Rowling")), 
-                AuthorOrder = 1 
+            book3.BookAuthors.Add(new BookAuthor
+            {
+                Author = authors.First(a => a.FullName.Contains("Rowling")),
+                AuthorOrder = 1
             });
-            book3.BookCategories.Add(new BookCategory { 
-                Category = GetCategory("Fantasy")! 
+            book3.BookCategories.Add(new BookCategory
+            {
+                Category = GetCategory("Fantasy")!
             });
             books.Add(book3);
 
@@ -286,12 +292,14 @@ namespace library.Data
                 BookAuthors = new List<BookAuthor>(),
                 BookCategories = new List<BookCategory>()
             };
-            book4.BookAuthors.Add(new BookAuthor { 
-                Author = authors.First(a => a.FullName.Contains("Martin")), 
-                AuthorOrder = 1 
+            book4.BookAuthors.Add(new BookAuthor
+            {
+                Author = authors.First(a => a.FullName.Contains("Martin")),
+                AuthorOrder = 1
             });
-            book4.BookCategories.Add(new BookCategory { 
-                Category = GetCategory("Fantasy")! 
+            book4.BookCategories.Add(new BookCategory
+            {
+                Category = GetCategory("Fantasy")!
             });
             books.Add(book4);
 
@@ -305,12 +313,14 @@ namespace library.Data
                 BookAuthors = new List<BookAuthor>(),
                 BookCategories = new List<BookCategory>()
             };
-            book5.BookAuthors.Add(new BookAuthor { 
-                Author = authors.First(a => a.FullName.Contains("Christie")), 
-                AuthorOrder = 1 
+            book5.BookAuthors.Add(new BookAuthor
+            {
+                Author = authors.First(a => a.FullName.Contains("Christie")),
+                AuthorOrder = 1
             });
-            book5.BookCategories.Add(new BookCategory { 
-                Category = GetCategory("Mystery")! 
+            book5.BookCategories.Add(new BookCategory
+            {
+                Category = GetCategory("Mystery")!
             });
             books.Add(book5);
 
@@ -324,12 +334,14 @@ namespace library.Data
                 BookAuthors = new List<BookAuthor>(),
                 BookCategories = new List<BookCategory>()
             };
-            book6.BookAuthors.Add(new BookAuthor { 
-                Author = authors.First(a => a.FullName.Contains("King")), 
-                AuthorOrder = 1 
+            book6.BookAuthors.Add(new BookAuthor
+            {
+                Author = authors.First(a => a.FullName.Contains("King")),
+                AuthorOrder = 1
             });
-            book6.BookCategories.Add(new BookCategory { 
-                Category = GetCategory("Horror")! 
+            book6.BookCategories.Add(new BookCategory
+            {
+                Category = GetCategory("Horror")!
             });
             books.Add(book6);
 
@@ -343,12 +355,14 @@ namespace library.Data
                 BookAuthors = new List<BookAuthor>(),
                 BookCategories = new List<BookCategory>()
             };
-            book7.BookAuthors.Add(new BookAuthor { 
-                Author = authors.First(a => a.FullName.Contains("Austen")), 
-                AuthorOrder = 1 
+            book7.BookAuthors.Add(new BookAuthor
+            {
+                Author = authors.First(a => a.FullName.Contains("Austen")),
+                AuthorOrder = 1
             });
-            book7.BookCategories.Add(new BookCategory { 
-                Category = GetCategory("Romance")! 
+            book7.BookCategories.Add(new BookCategory
+            {
+                Category = GetCategory("Romance")!
             });
             books.Add(book7);
 
@@ -362,29 +376,33 @@ namespace library.Data
                 BookAuthors = new List<BookAuthor>(),
                 BookCategories = new List<BookCategory>()
             };
-            
+
             // Create Stephen Hawking if not exists
             var hawking = authors.FirstOrDefault(a => a.FullName.Contains("Hawking"));
             if (hawking == null)
             {
-                hawking = new Author { 
-                    FullName = "Stephen Hawking", 
-                    Biography = "Theoretical physicist and cosmologist", 
-                    CreatedAt = DateTime.UtcNow 
+                hawking = new Author
+                {
+                    FullName = "Stephen Hawking",
+                    Biography = "Theoretical physicist and cosmologist",
+                    CreatedAt = DateTime.UtcNow
                 };
                 await context.Authors.AddAsync(hawking);
                 await context.SaveChangesAsync();
             }
-            
-            book8.BookAuthors.Add(new BookAuthor { 
-                Author = hawking, 
-                AuthorOrder = 1 
+
+            book8.BookAuthors.Add(new BookAuthor
+            {
+                Author = hawking,
+                AuthorOrder = 1
             });
-            book8.BookCategories.Add(new BookCategory { 
-                Category = GetCategory("Science")! 
+            book8.BookCategories.Add(new BookCategory
+            {
+                Category = GetCategory("Science")!
             });
-            book8.BookCategories.Add(new BookCategory { 
-                Category = GetCategory("Physics")! 
+            book8.BookCategories.Add(new BookCategory
+            {
+                Category = GetCategory("Physics")!
             });
             books.Add(book8);
 
@@ -400,6 +418,7 @@ namespace library.Data
             var books = await context.Books.ToListAsync();
             var random = new Random();
             var itemsAdded = 0;
+            var usedBarcodes = new HashSet<string>(); // Track used barcodes
 
             foreach (var book in books)
             {
@@ -426,11 +445,23 @@ namespace library.Data
                     for (int i = 1; i <= copyCount; i++)
                     {
                         var status = i <= copyCount - 1 ? ItemStatus.Available : ItemStatus.Borrowed;
-                        
+
+                        // Generate UNIQUE barcode
+                        string baseBarcode = $"{book.Title.Substring(0, Math.Min(3, book.Title.Length)).ToUpper()}{e:D2}{i:D3}";
+                        string barcode = baseBarcode;
+                        int counter = 1;
+
+                        // Ensure uniqueness
+                        while (usedBarcodes.Contains(barcode))
+                        {
+                            barcode = $"{baseBarcode}{counter++}";
+                        }
+                        usedBarcodes.Add(barcode);
+
                         var item = new Item
                         {
                             EditionId = edition.Id,
-                            Barcode = $"{book.Title.Substring(0, 3).ToUpper()}{e:D2}{i:D3}",
+                            Barcode = barcode,
                             AcquisitionDate = DateTime.UtcNow.AddDays(-random.Next(1, 365)),
                             Price = 19.99m + (e * 5),
                             ItemStatus = status,
