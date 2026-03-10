@@ -1,9 +1,15 @@
+using System.Text.Json.Serialization;
 using library.Data;
 using library.Models.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddControllers().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 
 // Add DbContext
 builder.Services.AddDbContext<AppDbContext>(
@@ -67,5 +73,6 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
     
+app.MapControllers();
 
 app.Run();
