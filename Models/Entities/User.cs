@@ -27,7 +27,7 @@ namespace library.Models.Entities
         public ICollection<Review> Reviews { get; set; } = new List<Review>();
         public ICollection<Bookmark> Bookmarks { get; set; } = new List<Bookmark>();
         public ICollection<Fine> Fines { get; set; } = new List<Fine>();
-    
+        public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
         
     }
 }
