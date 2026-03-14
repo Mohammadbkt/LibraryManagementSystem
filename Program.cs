@@ -8,6 +8,7 @@ using library.Models.Entities;
 using library.Services.Implementation;
 using library.Services.Interface;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -24,6 +25,11 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 builder.Services.AddFluentValidationAutoValidation();
 
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+
+builder.Services.Configure<JsonOptions>(options =>
+{
+    options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+});
 
 // Add DbContext
 builder.Services.AddDbContext<AppDbContext>(
@@ -52,6 +58,17 @@ var jwtConfig = builder.Configuration.GetSection("Jwt");
 builder.Services.Configure<JwtConfig>(
     builder.Configuration.GetSection("Jwt"));
 
+builder.Services.Configure<EmailConfig>(builder.Configuration.GetSection("Email"));
+builder.Services.AddScoped<IEmailService, EmailService>();
+
+builder.Services.Configure<OtpConfig>(builder.Configuration.GetSection("Otp"));
+
+// Register Services
+builder.Services.AddScoped<IOtpService, OtpService>();
+
+// Add background service for cleanup (optional)
+// builder.Services.AddHostedService<OtpCleanupService>();
+
 // Add authentication with Bearer tokens
 builder.Services.AddAuthentication(options =>
 {
@@ -77,7 +94,7 @@ builder.Services.AddAuthentication(options =>
         ClockSkew = TimeSpan.Zero
     };
 
-    
+
 }
     );
 
@@ -92,7 +109,7 @@ builder.Services.AddAuthorization();
 // builder.Services.AddSwaggerGen(c =>
 // {
 //     c.SwaggerDoc("v1", new() { Title = "Library API", Version = "v1" });
-    
+
 //     // Add JWT Authentication to Swagger
 //     c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
 //     {

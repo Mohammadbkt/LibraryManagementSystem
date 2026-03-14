@@ -28,6 +28,7 @@ namespace library.Models.Entities
         public ICollection<Bookmark> Bookmarks { get; set; } = new List<Bookmark>();
         public ICollection<Fine> Fines { get; set; } = new List<Fine>();
         public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+        public ICollection<Otp> otps {get; set;} = new List<Otp>();
         
     }
 }

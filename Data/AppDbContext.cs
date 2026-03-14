@@ -28,6 +28,7 @@ namespace library.Data
         public DbSet<Bookmark> Bookmarks { get; set; }
         public DbSet<Fine> Fines { get; set; }
         public DbSet<RefreshToken> RefreshTokens {get; set;}
+        public DbSet<Otp> Otps {get; set;}
 
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
         {
