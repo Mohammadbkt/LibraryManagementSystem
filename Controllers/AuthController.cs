@@ -1,106 +1,115 @@
-// using System;
-// using System.Collections.Generic;
-// using System.Linq;
-// using System.Threading.Tasks;
-// using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
+using library.Dtos.Auth;
+using library.Services.Interface;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
-// namespace library.Controllers
-// {
-//     public class AuthController
-//     {
-        
-//     [ApiController]
-//     [Route("api/auth")]
-//     public class AuthController : ControllerBase
-//     {
-//         private readonly IAuthService _authService;
+namespace library.Controllers
+{
+    [ApiController]
+    [Route("api/auth")]
+    public class AuthController : ControllerBase
+    {
+        private readonly IAuthService _authService;
 
-//         public AuthController(IAuthService authService)
-//         {
-//             _authService = authService;
-//         }
+        public AuthController(IAuthService authService)
+        {
+            _authService = authService;
+        }
 
-//         [HttpPost("login")]
-//         public async Task<IActionResult> Login([FromBody] LoginRequestDto loginRequestDto)
-//         {
-//             try
-//             {
-//                 if (!ModelState.IsValid)
-//                     return BadRequest(ModelState);
+        [HttpPost("register")]
+        public async Task<IActionResult> RegisterAsync([FromBody] RegisterDto dto)
+        {
+            var deviceName = HttpContext.Request.Headers.UserAgent.ToString();
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "";
 
-//                 var res = await _authService.Login(loginRequestDto);
-//                 if (!res.Success)
-//                     return BadRequest(res);
+            var result = await _authService.RegisterAsync(dto, deviceName, ipAddress);
 
-//                 return Ok(res);
-//             }
-//             catch (Exception ex)
-//             {
-//                 return StatusCode(500, new { message = "Login failed due to server error", detail = ex.Message });
-//             }
-//         }
+            return result.IsSuccess ? Ok(result) : BadRequest(result);
+        }
 
-//         [HttpPost("register")]
-//         public async Task<IActionResult> Register([FromBody] RegisterRequestDto registerRequestDto)
-//         {
-//             try
-//             {
-//                 if (!ModelState.IsValid)
-//                     return BadRequest(ModelState);
+        [HttpPost("login")]
+        public async Task<IActionResult> LoginAsync([FromBody] LoginDto dto)
+        {
+            var deviceName = HttpContext.Request.Headers.UserAgent.ToString();
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "";
 
-//                 var res = await _authService.Register(registerRequestDto);
-//                 if (!res.Success)
-//                     return BadRequest(res);
+            var result = await _authService.LoginAsync(dto, deviceName, ipAddress);
 
-//                 return Ok(res);
-//             }
-//             catch (Exception ex)
-//             {
-//                 return StatusCode(500, new { message = "Registration failed due to server error", detail = ex.Message });
-//             }
-//         }
+            return result.IsSuccess ? Ok(result) : BadRequest(result);
+        }
 
-//     [HttpPost("verify-otp")]
-//     public async Task<IActionResult> VerifyOtpAsync([FromBody] VerifyOtpRequestDto requestDto)
-//     {
-//         try
-//         {
-//             if (!ModelState.IsValid)
-//                 return BadRequest(ModelState);
+        [HttpPost("refresh")]
+        public async Task<IActionResult> RefreshAsync([FromBody] RefreshRequestDto dto)
+        {
+            var deviceName = HttpContext.Request.Headers.UserAgent.ToString();
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "";
 
-//             var result = await _authService.VerifyOtp(requestDto.UserId, requestDto.OtpCode);
-//             if (!result.Success)
-//                 return BadRequest(result);
+            var result = await _authService.RefreshTokenAsync(dto.AccessToken, dto.RefreshToken, deviceName, ipAddress);
 
-//             return Ok(result);
-//         }
-//         catch (Exception ex)
-//         {
-//             return StatusCode(500, new { message = "OTP verification failed", detail = ex.Message });
-//         }
-//     }
+            return result.IsSuccess ? Ok(result) : BadRequest(result);
+        }
 
-//     [HttpPost("resend-otp")]
-//     public async Task<IActionResult> ResendOtpAsync([FromBody] ResendOtpDto dto)
-//     {
-//         try
-//         {
-//             if (!ModelState.IsValid)
-//                 return BadRequest(ModelState);
+        [HttpPost("logout")]
+        [Authorize]
+        public async Task<IActionResult> LogoutAsync([FromBody] LogoutDto dto)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-//             var result = await _authService.ResendOtpAsync(dto.UserId);
-//             if (!result.Success)
-//                 return BadRequest(result);
+            if (userId == null)
+                return Unauthorized();
 
-//             return Ok(result);
-//         }
-//         catch (Exception ex)
-//         {
-//             return StatusCode(500, new { message = "Error resending OTP", detail = ex.Message });
-//         }
-//     }
-// }
+            await _authService.LogoutAsync(userId, dto.RefreshToken);
 
+            return Ok(new { message = "Logged out successfully" });
+        }
 
-// }
-// }
+        [HttpPost("logout-all")]
+        [Authorize]
+        public async Task<IActionResult> LogoutAllAsync()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (userId == null)
+                return Unauthorized();
+
+            await _authService.LogoutAllDevicesAsync(userId);
+
+            return Ok(new { message = "Logged out from all devices" });
+        }
+
+        [HttpPost("change-password")]
+        [Authorize]
+        public async Task<IActionResult> ChangePasswordAsync([FromBody] ChangePasswordDto dto)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (userId == null)
+                return Unauthorized();
+
+            var result = await _authService.ChangePasswordAsync(userId, dto.CurrentPassword, dto.NewPassword);
+
+            return result ? Ok(new { message = "Password changed successfully" }) : BadRequest(new { message = "Current password is incorrect" });
+        }
+
+        [HttpPost("verify-otp")]
+        public async Task<IActionResult> VerifyOtpAsync([FromBody] VerifyOtpRequestDto dto)
+        {
+            var deviceName = HttpContext.Request.Headers.UserAgent.ToString();
+
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "";
+
+            var result = await _authService.VerifyOtpAsync(dto.UserId, dto.OtpCode, deviceName, ipAddress);
+
+            return result.IsSuccess ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpPost("resend-otp")]
+        public async Task<IActionResult> ResendOtpAsync([FromBody] ResendOtpRequestDto dto)
+        {
+            var result = await _authService.ResendOtpAsync(dto.UserId);
+            
+            return result.IsSuccess ? Ok(result) : BadRequest(result);
+        }
+    }
+}

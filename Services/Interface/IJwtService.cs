@@ -11,9 +11,12 @@ namespace library.Services.Interface
 {
     public interface IJwtService
     {
-        Task<TokenResponseDto> GenerateTokenAsync(User user, string deviceName, string ipAddress);
+        Task<TokenResponseDto> GenerateTokenAsync(User user, string? deviceName, string? ipAddress);
         string GenerateRefreshToken();
-        Task<TokenResponseDto?> RefreshTokenAsync(string accessToken, string refreshToken, string deviceName, string ipAddress);
+        Task<TokenResponseDto?> RefreshTokenAsync(string accessToken, string refreshToken, string? deviceName, string? ipAddress);
         ClaimsPrincipal? ValidateToken(string token);
+
+        Task RevokeTokenAsync(string userId, string refreshToken);
+        Task RevokeAllTokensAsync(string userId);
     }
 }

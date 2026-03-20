@@ -27,7 +27,7 @@ namespace library.Services.Implementation
             _context = context;
         }
 
-        public async Task<TokenResponseDto> GenerateTokenAsync(User user, string deviceName, string ipAddress)
+        public async Task<TokenResponseDto> GenerateTokenAsync(User user, string? deviceName, string? ipAddress)
         {
             var accessToken = await GenerateAccessTokenAsync(user);
             var refreshToken = await GenerateAndStoreRefreshTokenAsync(user, deviceName, ipAddress);
@@ -80,7 +80,7 @@ namespace library.Services.Implementation
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-        private async Task<RefreshToken> GenerateAndStoreRefreshTokenAsync(User user, string deviceName, string ipAddress)
+        private async Task<RefreshToken> GenerateAndStoreRefreshTokenAsync(User user, string? deviceName, string? ipAddress)
         {
             var refreshToken = new RefreshToken
             {
@@ -106,7 +106,7 @@ namespace library.Services.Implementation
             return Convert.ToBase64String(randomNumber);
         }
 
-        public async Task<TokenResponseDto?> RefreshTokenAsync(string accessToken, string refreshToken, string deviceName, string ipAddress)
+        public async Task<TokenResponseDto?> RefreshTokenAsync(string accessToken, string refreshToken, string? deviceName, string? ipAddress)
         {
             var principal = ValidateToken(accessToken);
             if (principal == null)
@@ -126,7 +126,7 @@ namespace library.Services.Implementation
             // Reuse detection — token already revoked means possible theft
             if (storedToken.RevokedAt != null)
             {
-                await RevokeAllUserTokensAsync(userId);
+                await RevokeAllTokensAsync(userId);
                 return null;
             }
 
@@ -187,7 +187,18 @@ namespace library.Services.Implementation
             }
         }
 
-        private async Task RevokeAllUserTokensAsync(string userId)
+        public async Task RevokeTokenAsync(string userId, string refreshToken)
+        {
+            var token = await _context.RefreshTokens.FirstOrDefaultAsync(rt => rt.Token == refreshToken && rt.UserId == userId);
+
+            if (token == null || !token.IsActive)
+                return;
+
+            token.RevokedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task RevokeAllTokensAsync(string userId)
         {
             var activeTokens = await _context.RefreshTokens
                 .Where(rt => rt.UserId == userId && rt.RevokedAt == null)

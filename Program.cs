@@ -8,68 +8,59 @@ using library.Models.Entities;
 using library.Services.Implementation;
 using library.Services.Interface;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-//using Microsoft.OpenApi.Models;
-//IJwtServiceusing Swashbuckle.AspNetCore.Swagger;
+using Microsoft.OpenApi;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ─── Controllers ─────────────────────────────────────────────────────────────
 builder.Services.AddControllers().AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
 });
 
+// ─── FluentValidation ────────────────────────────────────────────────────────
 builder.Services.AddFluentValidationAutoValidation();
-
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
-builder.Services.Configure<JsonOptions>(options =>
-{
-    options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
-});
+// ─── Database ────────────────────────────────────────────────────────────────
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Add DbContext
-builder.Services.AddDbContext<AppDbContext>(
-    options => options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
-);
-
+// ─── Identity ────────────────────────────────────────────────────────────────
 builder.Services.AddIdentity<User, IdentityRole>(options =>
 {
-    // Password settings
     options.Password.RequireDigit = true;
-    options.Password.RequiredLength = 6;
+    options.Password.RequiredLength = 8;
     options.Password.RequireNonAlphanumeric = true;
     options.Password.RequireUppercase = true;
     options.Password.RequireLowercase = true;
 
-    // User settings
     options.User.RequireUniqueEmail = true;
+    options.SignIn.RequireConfirmedEmail = true;
+
+    options.Lockout.MaxFailedAccessAttempts = 5;
+    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
 })
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
 
-
-var jwtConfig = builder.Configuration.GetSection("Jwt");
-
-
-builder.Services.Configure<JwtConfig>(
-    builder.Configuration.GetSection("Jwt"));
-
+// ─── Configurations ───────────────────────────────────────────────────────────
+var jwtSection = builder.Configuration.GetSection("Jwt");
+builder.Services.Configure<JwtConfig>(jwtSection);
 builder.Services.Configure<EmailConfig>(builder.Configuration.GetSection("Email"));
-builder.Services.AddScoped<IEmailService, EmailService>();
-
 builder.Services.Configure<OtpConfig>(builder.Configuration.GetSection("Otp"));
+builder.Services.AddScoped<IBookService, BookService>();
+// builder.Services.AddScoped<IAuthorService, AuthorService>();
+// builder.Services.AddScoped<IPublisherService, PublisherService>();
+// builder.Services.AddScoped<ICategoryService, CategoryService>();
+// builder.Services.AddScoped<IEditionService, EditionService>();
 
-// Register Services
-builder.Services.AddScoped<IOtpService, OtpService>();
-
-// Add background service for cleanup (optional)
-// builder.Services.AddHostedService<OtpCleanupService>();
-
-// Add authentication with Bearer tokens
+// ─── JWT Authentication ───────────────────────────────────────────────────────
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -79,66 +70,60 @@ builder.Services.AddAuthentication(options =>
 .AddJwtBearer(options =>
 {
     options.SaveToken = true;
-    options.RequireHttpsMetadata = false;
+    options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtConfig["ValidIssuer"],
-        ValidAudience = jwtConfig["ValidAudience"],
+        ValidIssuer = jwtSection["ValidIssuer"],
+        ValidAudience = jwtSection["ValidAudience"],
         IssuerSigningKey = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(jwtConfig["Secret"] ??
-                throw new InvalidOperationException("JWT Secret not configured"))),
+            Encoding.UTF8.GetBytes(jwtSection["Secret"] ??
+                throw new InvalidOperationException("JWT Secret is not configured"))),
         ClockSkew = TimeSpan.Zero
     };
+});
 
-
-}
-    );
-
-builder.Services.AddScoped<IJwtService, JwtService>();
-
+// ─── Authorization ────────────────────────────────────────────────────────────
 builder.Services.AddAuthorization();
 
-//builder.Services.AddOpenApi();
+// ─── Services ────────────────────────────────────────────────────────────────
+builder.Services.AddScoped<IJwtService, JwtService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IOtpService, OtpService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 
-// Add Swagger
-// builder.Services.AddEndpointsApiExplorer();
-// builder.Services.AddSwaggerGen(c =>
-// {
-//     c.SwaggerDoc("v1", new() { Title = "Library API", Version = "v1" });
+// ─── CORS ─────────────────────────────────────────────────────────────────────
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+        policy.AllowAnyOrigin()
+            .AllowAnyMethod()
+            .AllowAnyHeader());
+});
 
-//     // Add JWT Authentication to Swagger
-//     c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
-//     {
-//         Description = "JWT Authorization header using the Bearer scheme. Enter 'Bearer' [space] and then your token",
-//         Name = "Authorization",
-//         In = Microsoft.OpenApi.Models.ParameterLocation.Header,
-//         Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey,
-//         Scheme = "Bearer"
-//     });
+// ─── Swagger ──────────────────────────────────────────────────────────────────
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo { Title = "Library API", Version = "v1" });
 
-//     c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
-//     {
-//         {
-//             new Microsoft.OpenApi.Models.OpenApiSecurityScheme
-//             {
-//                 Reference = new Microsoft.OpenApi.Models.OpenApiReference
-//                 {
-//                     Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
-//                     Id = "Bearer"
-//                 }
-//             },
-//             new string[] {}
-//         }
-//     });
-// });
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Enter: Bearer {your token}"
+    });
+});
 
 var app = builder.Build();
 
-// SEED DATA - AFTER builder.Build() but BEFORE app.Run()
+// ─── Seed Data ────────────────────────────────────────────────────────────────
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -154,19 +139,17 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// Configure the HTTP request pipeline.
+// ─── Middleware Pipeline ──────────────────────────────────────────────────────
 if (app.Environment.IsDevelopment())
 {
-    // app.MapOpenApi();    
-    // app.UseSwagger();
-    // app.UseSwaggerUI();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
 app.UseHttpsRedirection();
-
+app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();

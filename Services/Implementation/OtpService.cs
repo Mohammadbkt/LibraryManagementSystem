@@ -106,7 +106,6 @@ namespace library.Services.Implementation
 
         public async Task<bool> VerifyOtpAsync(string userId, string otpCode, string? ipAddress = null)
         {
-            // Basic validation
             if (string.IsNullOrWhiteSpace(otpCode) || otpCode.Length != _otpConfig.OtpLength)
             {
                 return false;
@@ -122,15 +121,13 @@ namespace library.Services.Implementation
                 return false;
             }
 
-            // Check if expired
             if (otp.ExpiresAt <= DateTime.UtcNow)
             {
-                otp.IsUsed = true; // Mark as used to prevent further attempts
+                otp.IsUsed = true;
                 await _context.SaveChangesAsync();
                 return false;
             }
 
-            // Check IP if required
             if (_otpConfig.RequireIpValidation && !string.IsNullOrEmpty(otp.IpAddress) && otp.IpAddress != ipAddress)
             {
                 otp.FailedAttempts++;
@@ -152,6 +149,7 @@ namespace library.Services.Implementation
                 otp.IsUsed = true;
                 otp.VerifiedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
+                return true;
 
             }
 

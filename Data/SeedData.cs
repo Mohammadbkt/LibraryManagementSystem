@@ -45,7 +45,7 @@ namespace library.Data
 
         private static async Task SeedRolesAsync(RoleManager<IdentityRole> roleManager)
         {
-            string[] roles = { "Admin", "Librarian", "Member" };
+            string[] roles = { "USER", "ADMIN" };
 
             foreach (var role in roles)
             {
@@ -59,7 +59,7 @@ namespace library.Data
 
         private static async Task SeedUsersAsync(UserManager<User> userManager)
         {
-            // Admin user
+            // Admin user - gets ADMIN role
             var adminEmail = "admin@library.com";
             if (await userManager.FindByEmailAsync(adminEmail) == null)
             {
@@ -76,12 +76,14 @@ namespace library.Data
                 var result = await userManager.CreateAsync(admin, "Admin@123");
                 if (result.Succeeded)
                 {
-                    await userManager.AddToRoleAsync(admin, "Admin");
+                    // ✅ Use "ADMIN" (matches your seeded role)
+                    await userManager.AddToRoleAsync(admin, "ADMIN");
                     Console.WriteLine("  ✓ Admin user created");
                 }
             }
 
-            // Librarian user
+            // Librarian user - you could give them ADMIN role for now, 
+            // or create them as a regular USER until you add LIBRARIAN role later
             var librarianEmail = "librarian@library.com";
             if (await userManager.FindByEmailAsync(librarianEmail) == null)
             {
@@ -98,12 +100,17 @@ namespace library.Data
                 var result = await userManager.CreateAsync(librarian, "Librarian@123");
                 if (result.Succeeded)
                 {
-                    await userManager.AddToRoleAsync(librarian, "Librarian");
+                    // ✅ Option 1: Give ADMIN role (if librarians should have admin access)
+                    await userManager.AddToRoleAsync(librarian, "ADMIN");
+
+                    // ✅ Option 2: Give USER role (if librarians are just regular users for now)
+                    // await userManager.AddToRoleAsync(librarian, "USER");
+
                     Console.WriteLine("  ✓ Librarian user created");
                 }
             }
 
-            // Member user
+            // Member user - give them USER role
             var memberEmail = "member@library.com";
             if (await userManager.FindByEmailAsync(memberEmail) == null)
             {
@@ -120,7 +127,8 @@ namespace library.Data
                 var result = await userManager.CreateAsync(member, "Member@123");
                 if (result.Succeeded)
                 {
-                    await userManager.AddToRoleAsync(member, "Member");
+                    // ✅ Use "USER" (matches your seeded role)
+                    await userManager.AddToRoleAsync(member, "USER");
                     Console.WriteLine("  ✓ Member user created");
                 }
             }
