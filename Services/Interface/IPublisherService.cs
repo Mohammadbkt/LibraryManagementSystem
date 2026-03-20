@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace library.Services.Interface
 {
-    public interface ICatalogService
+    public class IPublisherService
     {
         
     }

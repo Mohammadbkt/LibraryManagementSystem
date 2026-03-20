@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace library.Services.Implementation
 {
-    public class CatalogService
+    public class PublisherService
     {
         
     }
