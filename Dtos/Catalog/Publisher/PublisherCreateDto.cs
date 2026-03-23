@@ -9,6 +9,5 @@ namespace library.Dtos.Catalog.Publisher
     {
         public string Name { get; set; } = string.Empty;
         public string? Website { get; set; }
-        public string? Address { get; set; }
     }
 }

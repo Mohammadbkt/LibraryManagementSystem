@@ -15,6 +15,10 @@ namespace library.Models.Entities
         public string? Biography {get; set;}
         public DateTime CreatedAt {get; set;} = DateTime.UtcNow;
 
+        public string? Nationality { get; set; }
+        public bool IsDeleted { get; set; } = false;
+        public DateTime? DeletedAt { get; set; }
+
         public ICollection<BookAuthor> BookAuthors {get; set;} = new List<BookAuthor>();
 
 
