@@ -32,6 +32,7 @@ namespace library.Data.EntityConfiguration
                 .HasDefaultValue("English");
                 
             builder.Property(e => e.Format)
+                .HasConversion<string>()
                 .HasMaxLength(50);
                 
             builder.Property(e => e.PublicationYear)

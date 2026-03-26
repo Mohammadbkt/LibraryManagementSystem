@@ -16,7 +16,7 @@ namespace library.Services.Interface
     Task<EditionDto?> GetEditionByIdAsync(int id);
     Task<EditionDto> CreateEditionAsync(EditionCreateDto dto);
     Task<EditionDto> UpdateEditionAsync(int id, EditionUpdateDto dto);
-    Task<bool> DeleteEditionAsync(int id);
+    Task DeleteEditionAsync(int id);
 
     // Items
     Task<IEnumerable<ItemDto>> GetItemsByEditionAsync(int editionId);
@@ -24,7 +24,7 @@ namespace library.Services.Interface
     Task<ItemDto?> GetItemByIdAsync(int id);
     Task<ItemDto> CreateItemAsync(ItemCreateDto dto);
     Task<ItemDto> UpdateItemAsync(int id, ItemUpdateDto dto);
-    Task<bool> DeleteItemAsync(int id);
+    Task DeleteItemAsync(int id);
     Task<IEnumerable<ItemDto>> GetAvailableItemsAsync(int editionId);
     }
 }

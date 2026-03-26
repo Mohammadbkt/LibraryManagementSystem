@@ -9,10 +9,14 @@ namespace library.Dtos.Catalog.Item
     {
         public int EditionId { get; set; }
 
-        public string? Barcode { get; set; }
+        public string Barcode { get; set; } = string.Empty;
 
-        public string Condition { get; set; } = string.Empty;
+        public DateTime AcquisitionDate { get; set; }
 
-        public DateTime AcquiredAt { get; set; }
+        public decimal Price { get; set; }
+
+        public string? Notes { get; set; }
+
+        public string? Location { get; set; }
     }
 }

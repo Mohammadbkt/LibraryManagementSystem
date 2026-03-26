@@ -24,7 +24,7 @@ namespace library.Data.EntityConfiguration
                 .HasMaxLength(500);
 
             builder.Property(b=>b.PublisherId)
-                .IsRequired(false);
+                .IsRequired();
 
             builder.HasOne(b=>b.Publisher)
                     .WithMany(p=>p.Books)

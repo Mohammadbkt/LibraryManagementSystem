@@ -3,19 +3,19 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using library.Dtos.Catalog.Book;
+using library.Dtos.Common;
 
 namespace library.Services.Interface
 {
     public interface IBookService
     {
-        Task<IEnumerable<BookSummaryDto>> GetAllBooksAsync();
-        Task<BookDetailDto?> GetBookByIdAsync(string id);
+        Task<PagedResult<BookSummaryDto>> GetAllBooksAsync(BookQueryParams queryParams);
+        Task<BookDetailDto?> GetBookByIdAsync(int id);
         Task<BookResponseDto> CreateBookAsync(BookCreateDto dto);
-        Task<BookResponseDto> UpdateBookAsync(string id, BookUpdateDto dto);
-        Task<bool> DeleteBookAsync(string id);
-        Task<IEnumerable<BookSummaryDto>> SearchBooksAsync(string query);
-        Task<IEnumerable<BookSummaryDto>> GetBooksByAuthorAsync(int authorId);
-        Task<IEnumerable<BookSummaryDto>> GetBooksByPublisherAsync(int publisherId);
-        Task<IEnumerable<BookSummaryDto>> GetBooksByCategoryAsync(int categoryId);
+        Task<BookDetailDto> UpdateBookAsync(int id, BookUpdateDto dto);
+        Task DeleteBookAsync(int id);
+        Task<PagedResult<BookSummaryDto>> GetBooksByAuthorAsync(int authorId, BookQueryParams queryParams);
+        Task<PagedResult<BookSummaryDto>> GetBooksByPublisherAsync(int publisherId, BookQueryParams queryParams);
+        Task<PagedResult<BookSummaryDto>> GetBooksByCategoryAsync(int categoryId, BookQueryParams queryParams);
     }
 }

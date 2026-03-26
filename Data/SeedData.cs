@@ -434,12 +434,13 @@ namespace library.Data
                 int editionCount = random.Next(2, 4);
                 for (int e = 1; e <= editionCount; e++)
                 {
-                    var edition = new Edition
+                    var formats = Enum.GetValues<EditionFormat>();
+                var edition = new Edition
                     {
                         BookId = book.Id,
                         ISBN = $"978-{random.Next(100000000, 999999999)}",
                         Language = "English",
-                        Format = e == 1 ? "Hardcover" : (e == 2 ? "Paperback" : "eBook"),
+                        Format = formats[random.Next(formats.Length)],
                         PublicationYear = 2020 - e,
                         PageCount = 300 + (e * 50),
                         CreatedAt = DateTime.UtcNow

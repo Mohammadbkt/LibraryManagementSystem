@@ -9,8 +9,12 @@ namespace library.Dtos.Catalog.Item
     {
         public string? Barcode { get; set; }
 
-        public string? Condition { get; set; }
+        public string? ItemStatus { get; set; }
 
-        public bool? IsAvailable { get; set; }
+        public decimal? Price { get; set; }
+
+        public string? Notes { get; set; }
+
+        public string? Location { get; set; }
     }
 }
