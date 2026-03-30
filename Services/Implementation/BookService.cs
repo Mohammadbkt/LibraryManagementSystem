@@ -25,7 +25,7 @@ namespace library.Services.Implementation
         public async Task<BookResponseDto> CreateBookAsync(BookCreateDto dto)
         {
             var publisherExists = await _context.Publishers.AsNoTracking()
-                .AnyAsync(p => p.Id == dto.PublisherId);
+                .AnyAsync(p => p.Id == dto.PublisherId && !p.IsDeleted);
 
             if (!publisherExists)
                 throw new KeyNotFoundException("Publisher not found");
@@ -37,7 +37,7 @@ namespace library.Services.Implementation
                 throw new InvalidOperationException("A book with this title already exists for this publisher");
 
             var authors = await _context.Authors
-                                .Where(a => dto.AuthorIds.Contains(a.Id))
+                                .Where(a => dto.AuthorIds.Contains(a.Id) && !a.IsDeleted)
                                 .ToListAsync();
 
             if (authors.Count != dto.AuthorIds.Count())
@@ -68,6 +68,15 @@ namespace library.Services.Implementation
 
             await _context.Books.AddAsync(book);
             await _context.SaveChangesAsync();
+
+            var createdBook = await _context.Books
+                                    .AsNoTracking()
+                                    .Include(b => b.BookAuthors.OrderBy(ba => ba.AuthorOrder))
+                                        .ThenInclude(ba => ba.Author)
+                                    .Include(b => b.BookCategories)
+                                        .ThenInclude(bc => bc.Category)
+                                    .Include(b => b.Publisher)
+                                    .FirstOrDefaultAsync(b => b.Id == book.Id);
 
             return new BookResponseDto()
             {
@@ -146,6 +155,7 @@ namespace library.Services.Implementation
                                                 .ThenInclude(bc => bc.Category)
                                             .Include(b => b.Publisher)
                                             .Include(b => b.Editions)
+                                                .ThenInclude(e => e.Items)
                                             .FirstOrDefaultAsync(b => b.Id == id && !b.IsDeleted);
 
             if (bookExists == null)
@@ -206,6 +216,7 @@ namespace library.Services.Implementation
             var bookQuery = _context.Books
                                         .AsNoTracking()
                                         .Include(b => b.BookAuthors)
+                                            .ThenInclude(ba => ba.Author)
                                         .Include(b => b.BookCategories)
                                             .ThenInclude(bc => bc.Category)
                                         .Include(b => b.Publisher)
@@ -249,6 +260,7 @@ namespace library.Services.Implementation
             var bookQuery = _context.Books
                                     .AsNoTracking()
                                     .Include(b => b.BookAuthors)
+                                        .ThenInclude(ba => ba.Author)
                                     .Include(b => b.BookCategories)
                                         .ThenInclude(bc => bc.Category)
                                     .Include(b => b.Publisher)
