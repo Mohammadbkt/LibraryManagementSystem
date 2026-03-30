@@ -34,6 +34,8 @@ namespace library.Data.EntityConfiguration
             builder.HasIndex(c => new { c.Name, c.ParentId })
                 .IsUnique()
                 .HasDatabaseName("IX_Categories_Name_Parent");
+
+            builder.HasQueryFilter(c => !c.IsDeleted);
         }
     }
 }

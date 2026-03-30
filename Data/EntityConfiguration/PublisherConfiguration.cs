@@ -26,6 +26,8 @@ namespace library.Data.EntityConfiguration
                 
             builder.Property(p => p.Website)
                 .HasMaxLength(200);
+
+            builder.HasQueryFilter(p => !p.IsDeleted);
         }
     }
 }

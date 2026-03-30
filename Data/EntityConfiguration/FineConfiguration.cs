@@ -34,6 +34,8 @@ namespace library.Models.Entities
                 .WithMany(u => u.Fines)
                 .HasForeignKey(f => f.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasQueryFilter(f => !f.IsDeleted);
         }
     }
 }

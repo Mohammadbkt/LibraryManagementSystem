@@ -13,24 +13,33 @@ namespace library.Data.EntityConfiguration
         public void Configure(EntityTypeBuilder<Reservation> builder)
         {
             builder.ToTable("Reservations");
-            
+
             builder.HasKey(r => r.Id);
-            
+
             builder.Property(r => r.Status)
                 .HasConversion<string>();
-                
+
+            builder.HasIndex(r => new { r.BookId, r.QueuePosition })
+                    .IsUnique()
+                    .HasFilter("[Status] = 'Waiting'");
+
             builder.Property(r => r.QueuePosition)
                 .IsRequired();
-                
+
             builder.HasOne(r => r.Item)
                 .WithMany(i => i.Reservations)
                 .HasForeignKey(r => r.ItemId)
                 .OnDelete(DeleteBehavior.Restrict);
-                
+
             builder.HasOne(r => r.User)
                 .WithMany(u => u.Reservations)
                 .HasForeignKey(r => r.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasIndex(r => new { r.BookId, r.QueuePosition })
+                .IsUnique();
+
+            builder.HasQueryFilter(r => !r.IsDeleted);
         }
     }
 }

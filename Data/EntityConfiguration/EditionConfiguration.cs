@@ -45,6 +45,8 @@ namespace library.Data.EntityConfiguration
                 .WithMany(b => b.Editions)
                 .HasForeignKey(e => e.BookId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasQueryFilter(e => !e.IsDeleted);
         }
     }
 }

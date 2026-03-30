@@ -42,6 +42,8 @@ namespace library.Data.EntityConfiguration
                 .WithOne(f => f.Loan)
                 .HasForeignKey<Fine>(f => f.LoanId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasQueryFilter(l => !l.IsDeleted);
         }
     }
 }

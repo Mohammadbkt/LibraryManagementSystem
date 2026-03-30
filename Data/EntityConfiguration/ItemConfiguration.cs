@@ -44,6 +44,8 @@ namespace library.Data.EntityConfiguration
                 .WithMany(e => e.Items)
                 .HasForeignKey(i => i.EditionId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasQueryFilter(i => !i.IsDeleted);
         }
     }
 }

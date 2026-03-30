@@ -31,7 +31,7 @@ namespace library.Data.EntityConfiguration
                     .HasForeignKey(b=>b.PublisherId)
                     .OnDelete(DeleteBehavior.SetNull);
 
-            
+            builder.HasQueryFilter(b => !b.IsDeleted);
         }
     }
 }

@@ -19,6 +19,8 @@ namespace library.Data.EntityConfiguration
             builder.Property(a=>a.FullName).HasMaxLength(200).IsRequired();
 
             builder.Property(a=>a.Biography).HasMaxLength(4000);
+
+            builder.HasQueryFilter(a => !a.IsDeleted);
         }
     }
 }

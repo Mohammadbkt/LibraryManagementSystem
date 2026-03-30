@@ -13,28 +13,38 @@ namespace library.Data.EntityConfiguration
         public void Configure(EntityTypeBuilder<Review> builder)
         {
             builder.ToTable("Reviews");
-            
+
             builder.HasKey(r => r.Id);
-            
+
             builder.Property(r => r.Comment)
                 .HasMaxLength(2000);
-                
+
             builder.Property(r => r.Rating)
                 .IsRequired();
-                
+
             builder.HasIndex(r => new { r.BookId, r.UserId })
                 .IsUnique()
                 .HasDatabaseName("IX_Reviews_Book_User");
-                
+
+            builder.HasIndex(r => new { r.UserId, r.LoanId })
+                .IsUnique();
+
             builder.HasOne(r => r.Book)
                 .WithMany(b => b.Reviews)
                 .HasForeignKey(r => r.BookId)
                 .OnDelete(DeleteBehavior.Cascade);
-                
+
             builder.HasOne(r => r.User)
                 .WithMany(u => u.Reviews)
                 .HasForeignKey(r => r.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasOne(r => r.Loan)
+                .WithOne(l=>l.Review) 
+                .HasForeignKey<Review>(r => r.LoanId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            builder.HasQueryFilter(r => !r.IsDeleted);
         }
     }
 }
