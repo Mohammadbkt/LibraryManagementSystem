@@ -9,23 +9,27 @@ namespace library.Models.Entities
     public class Review
     {
         public int Id { get; set; }
-        
+        public int LoanId { get; set; }
+
         public int BookId { get; set; }
-        
+
         public string UserId { get; set; } = string.Empty;
-        
-        
+
+
         [Range(1, 5)]
         public int Rating { get; set; }
-        
+
         public string? Comment { get; set; }
-        
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
-        
-        
+
+        public bool IsDeleted { get; set; } = false;
+        public DateTime? DeletedAt { get; set; }
+
+
         public Book Book { get; set; } = null!;
         public User User { get; set; } = null!;
-        public Loan? Loan { get; set; }
+        public Loan Loan { get; set; } = null!;
     }
 }

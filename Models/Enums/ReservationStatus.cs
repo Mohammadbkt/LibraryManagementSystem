@@ -7,6 +7,8 @@ namespace library.Models.Enums
         Available,
         PickedUp,
         Expired,
-        Cancelled
+        Cancelled,
+        Ready,
+        Fulfilled
     }
 }
