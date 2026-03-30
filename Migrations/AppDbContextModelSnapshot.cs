@@ -404,6 +404,12 @@ namespace library.Migrations
                         .HasPrecision(10, 2)
                         .HasColumnType("decimal(10,2)");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
                     b.Property<DateTime>("IssuedDate")
                         .HasColumnType("datetime2");
 
@@ -501,8 +507,17 @@ namespace library.Migrations
                     b.Property<DateTime>("BorrowDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("DueDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<int>("EditionId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
 
                     b.Property<int>("ItemId")
                         .HasColumnType("int");
@@ -518,11 +533,16 @@ namespace library.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("EditionId");
 
                     b.HasIndex("ItemId");
 
@@ -676,10 +696,19 @@ namespace library.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("BookId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime?>("ExpiryDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<int>("ItemId")
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("ItemId")
                         .HasColumnType("int");
 
                     b.Property<DateTime?>("NotificationSentAt")
@@ -708,6 +737,10 @@ namespace library.Migrations
 
                     b.HasIndex("UserId");
 
+                    b.HasIndex("BookId", "QueuePosition")
+                        .IsUnique()
+                        .HasFilter("[Status] = 'Waiting'");
+
                     b.ToTable("Reservations", (string)null);
                 });
 
@@ -729,7 +762,13 @@ namespace library.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("LoanId")
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("LoanId")
                         .HasColumnType("int");
 
                     b.Property<int>("Rating")
@@ -744,13 +783,15 @@ namespace library.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("LoanId");
-
-                    b.HasIndex("UserId");
+                    b.HasIndex("LoanId")
+                        .IsUnique();
 
                     b.HasIndex("BookId", "UserId")
                         .IsUnique()
                         .HasDatabaseName("IX_Reviews_Book_User");
+
+                    b.HasIndex("UserId", "LoanId")
+                        .IsUnique();
 
                     b.ToTable("Reviews", (string)null);
                 });
@@ -1009,6 +1050,12 @@ namespace library.Migrations
 
             modelBuilder.Entity("library.Models.Entities.Loan", b =>
                 {
+                    b.HasOne("library.Models.Entities.Edition", "Edition")
+                        .WithMany()
+                        .HasForeignKey("EditionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("library.Models.Entities.Item", "Item")
                         .WithMany("Loans")
                         .HasForeignKey("ItemId")
@@ -1020,6 +1067,8 @@ namespace library.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Edition");
 
                     b.Navigation("Item");
 
@@ -1050,17 +1099,24 @@ namespace library.Migrations
 
             modelBuilder.Entity("library.Models.Entities.Reservation", b =>
                 {
+                    b.HasOne("library.Models.Entities.Book", "Book")
+                        .WithMany()
+                        .HasForeignKey("BookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("library.Models.Entities.Item", "Item")
                         .WithMany("Reservations")
                         .HasForeignKey("ItemId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("library.Models.Entities.User", "User")
                         .WithMany("Reservations")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Book");
 
                     b.Navigation("Item");
 
@@ -1076,8 +1132,10 @@ namespace library.Migrations
                         .IsRequired();
 
                     b.HasOne("library.Models.Entities.Loan", "Loan")
-                        .WithMany()
-                        .HasForeignKey("LoanId");
+                        .WithOne("Review")
+                        .HasForeignKey("library.Models.Entities.Review", "LoanId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
 
                     b.HasOne("library.Models.Entities.User", "User")
                         .WithMany("Reviews")
@@ -1132,6 +1190,8 @@ namespace library.Migrations
             modelBuilder.Entity("library.Models.Entities.Loan", b =>
                 {
                     b.Navigation("Fine");
+
+                    b.Navigation("Review");
                 });
 
             modelBuilder.Entity("library.Models.Entities.Publisher", b =>
