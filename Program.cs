@@ -54,11 +54,6 @@ var jwtSection = builder.Configuration.GetSection("Jwt");
 builder.Services.Configure<JwtConfig>(jwtSection);
 builder.Services.Configure<EmailConfig>(builder.Configuration.GetSection("Email"));
 builder.Services.Configure<OtpConfig>(builder.Configuration.GetSection("Otp"));
-builder.Services.AddScoped<IBookService, BookService>();
-// builder.Services.AddScoped<IAuthorService, AuthorService>();
-// builder.Services.AddScoped<IPublisherService, PublisherService>();
-// builder.Services.AddScoped<ICategoryService, CategoryService>();
-// builder.Services.AddScoped<IEditionService, EditionService>();
 
 // ─── JWT Authentication ───────────────────────────────────────────────────────
 builder.Services.AddAuthentication(options =>
@@ -90,8 +85,15 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 
 // ─── Services ────────────────────────────────────────────────────────────────
-builder.Services.AddScoped<IJwtService, JwtService>();
+builder.Services.AddScoped<IBookService, BookService>();
+builder.Services.AddScoped<IAuthorService, AuthorService>();
+builder.Services.AddScoped<IPublisherService, PublisherService>();
+builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<IEditionService, EditionService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IUserActivityService, UserActivityService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IOtpService, OtpService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 
@@ -144,6 +146,7 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    app.UseExceptionHandler("error-dev");
 }
 
 app.UseHttpsRedirection();
