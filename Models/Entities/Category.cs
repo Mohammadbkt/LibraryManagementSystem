@@ -19,6 +19,7 @@ namespace library.Models.Entities
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public bool IsDeleted { get; set; } = false;
         public DateTime? DeletedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
         public Category? ParentCategory { get; set; }
 
         public ICollection<Category> SubCategories { get; set; } = new List<Category>();

@@ -567,5 +567,40 @@ namespace library.Services.Implementation
                 PageSize = queryParams.PageSize
             };
         }
+
+        public async Task<PagedResult<FineDto>> GetAllFinesAsync(FineQueryParam queryParams)
+        {
+            var fineQuery = _context.Fines.AsQueryable();
+
+            if (queryParams.Amount != 0)
+                fineQuery = fineQuery.Where(f => f.Amount == queryParams.Amount);
+
+            if(!string.IsNullOrWhiteSpace(queryParams.Status) && Enum.TryParse<FineStatus>(queryParams.Status, out var status))
+                fineQuery = fineQuery.Where(f => f.Status == status);
+
+            var totalCount = await fineQuery.CountAsync();
+
+            var fines = await fineQuery
+                                .Include(f => f.Loan)
+                                    .ThenInclude(l => l.Item)
+                                        .ThenInclude(i => i.Edition)
+                                            .ThenInclude(e => e.Book)
+                                .Include(f => f.User)
+                                .Skip((queryParams.Page - 1) * queryParams.PageSize)
+                                .Take(queryParams.PageSize)
+                                .AsNoTracking()
+                                .OrderByDescending(f => f.Amount)
+                                .ToListAsync();
+
+            var finesDto = fines.Select(f => f.ToDto());
+
+            return new PagedResult<FineDto>()
+            {
+                Items = finesDto,
+                TotalCount = totalCount,
+                Page = queryParams.Page,
+                PageSize = queryParams.PageSize
+            };
+        }
     }
 }

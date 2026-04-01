@@ -15,7 +15,7 @@ namespace library.Services.Interface
         //Bookmark
         Task AddBookmarkAsync(string userId, AddBookmarkDto dto);
         Task RemoveBookmarkAsync(string userId, int bookId);
-        Task<PagedResult<BookmarkDto>> GetUserBookmarksAsync(BookmarkQueryParam queryParam);
+        Task<PagedResult<BookmarkDto>> GetUserBookmarksAsync(string userId, BookmarkQueryParam queryParam);
         Task<bool> IsBookmarkedAsync(string userId, int bookId);
 
         //Reviews
@@ -23,7 +23,7 @@ namespace library.Services.Interface
         Task DeleteReviewAsync(string userId, int reviewId);
         Task<ReviewDto> UpdateReviewAsync(string userId, int reviewId, UpdateReviewDto dto);
         Task<PagedResult<ReviewDto>> GetUserReviewsAsync(string userId, ReviewQueryParam queryParam);
-        Task<PagedResult<ReviewDto>> GetBookReviewsAsync(string userId,  int bookId,ReviewQueryParam queryParam);
+        Task<PagedResult<ReviewDto>> GetBookReviewsAsync(string userId,  int bookId, ReviewQueryParam queryParam);
 
 
 

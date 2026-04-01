@@ -14,7 +14,6 @@ namespace library.Services.Implementation
 {
     public class CategoryService : ICategoryService
     {
-
         private readonly AppDbContext _context;
 
         public CategoryService(AppDbContext context)
@@ -24,53 +23,61 @@ namespace library.Services.Implementation
 
         public async Task<CategoryDto> CreateCategoryAsync(CategoryCreateDto dto)
         {
-            var existingCategory = await _context.Categories.FirstOrDefaultAsync(c => c.Name == dto.Name && !c.IsDeleted);
-            if (existingCategory != null)
-                throw new InvalidOperationException("category already exisits");
+            var existingCategory = await _context.Categories
+                .FirstOrDefaultAsync(c => c.Name == dto.Name && !c.IsDeleted);
 
-            if (dto.ParentId != null)
+            if (existingCategory != null)
+                throw new InvalidOperationException("Category already exists");
+
+            if (dto.ParentId.HasValue)
             {
                 var parentExists = await _context.Categories
-                    .AnyAsync(c => c.Id == dto.ParentId && !c.IsDeleted);
+                    .AnyAsync(c => c.Id == dto.ParentId.Value && !c.IsDeleted);
 
                 if (!parentExists)
                     throw new InvalidOperationException("Parent category not found");
             }
 
-            var categorytoAdd = dto.ToEntity();
+            var categoryToAdd = dto.ToEntity();
 
-            await _context.Categories.AddAsync(categorytoAdd);
+            if (categoryToAdd.SortOrder == 0)
+            {
+                var maxSortOrder = await _context.Categories
+                    .Where(c => c.ParentId == dto.ParentId && !c.IsDeleted)
+                    .MaxAsync(c => (int?)c.SortOrder) ?? 0;
+                categoryToAdd.SortOrder = maxSortOrder + 1;
+            }
 
+            await _context.Categories.AddAsync(categoryToAdd);
             await _context.SaveChangesAsync();
 
-            return categorytoAdd.ToDto();
-
+            return categoryToAdd.ToDto();
         }
 
         public async Task DeleteCategoryAsync(int id)
         {
-            var exisitingCategory = await _context.Categories.FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
+            var category = await _context.Categories
+                .FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
 
-            if (exisitingCategory == null)
-                throw new KeyNotFoundException("category does not exists");
+            if (category == null)
+                throw new KeyNotFoundException("Category does not exist");
 
             var hasChildren = await _context.Categories
-                            .AnyAsync(c => c.ParentId == id && !c.IsDeleted);
+                .AnyAsync(c => c.ParentId == id && !c.IsDeleted);
 
             if (hasChildren)
-                throw new InvalidOperationException("Category has subcategories");
+                throw new InvalidOperationException("Cannot delete category with subcategories. Please delete or reassign subcategories first.");
 
-            exisitingCategory.IsDeleted = true;
-            exisitingCategory.DeletedAt = DateTime.UtcNow;
+            category.IsDeleted = true;
+            category.DeletedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
-
         }
 
         public async Task<PagedResult<CategoryDto>> GetAllCategoriesAsync(CategoryQueryParams queryParams)
         {
             var categoriesQuery = _context.Categories
-                                    .Where(c => !c.IsDeleted);
+                .Where(c => !c.IsDeleted);
 
             if (!string.IsNullOrWhiteSpace(queryParams.Search))
                 categoriesQuery = categoriesQuery
@@ -99,17 +106,19 @@ namespace library.Services.Implementation
 
         public async Task<CategoryDto?> GetCategoryByIdAsync(int id)
         {
-            var existingCategory = await _context.Categories.FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
-            if (existingCategory == null)
+            var category = await _context.Categories
+                .FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
+
+            if (category == null)
                 return null;
 
-            return existingCategory.ToDto();
-
+            return category.ToDto();
         }
 
         public async Task<IEnumerable<CategoryTreeDto>> GetCategoryTreeAsync()
         {
             var allCategories = await _context.Categories
+                .Where(c => !c.IsDeleted)
                 .AsNoTracking()
                 .ToListAsync();
 
@@ -121,7 +130,7 @@ namespace library.Services.Implementation
             int? parentId)
         {
             return allCategories
-                .Where(c => c.ParentId == parentId && !c.IsDeleted)
+                .Where(c => c.ParentId == parentId)
                 .OrderBy(c => c.SortOrder)
                 .ThenBy(c => c.Name)
                 .Select(c => new CategoryTreeDto
@@ -136,17 +145,19 @@ namespace library.Services.Implementation
 
         public async Task<CategoryDto> UpdateCategoryAsync(int id, CategoryUpdateDto dto)
         {
-            var existingCategory = await _context.Categories.FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
-            if (existingCategory == null)
-                throw new InvalidOperationException("category does not exisits");
+            var category = await _context.Categories
+                .FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
 
-            if (dto.ParentId == id)
-                throw new InvalidOperationException("Category cannot be its own parent");
+            if (category == null)
+                throw new KeyNotFoundException("Category does not exist");
 
-            if (dto.ParentId != null)
+            if (dto.ParentId.HasValue)
             {
+                if (dto.ParentId.Value == id)
+                    throw new InvalidOperationException("Category cannot be its own parent");
+
                 var parentExists = await _context.Categories
-                    .AnyAsync(c => c.Id == dto.ParentId && !c.IsDeleted);
+                    .AnyAsync(c => c.Id == dto.ParentId.Value && !c.IsDeleted);
 
                 if (!parentExists)
                     throw new InvalidOperationException("Parent category not found");
@@ -154,51 +165,53 @@ namespace library.Services.Implementation
                 if (await IsCircularParentAsync(id, dto.ParentId.Value))
                     throw new InvalidOperationException("Circular parent relationship detected");
 
-
-                existingCategory.ParentId = dto.ParentId;
+                category.ParentId = dto.ParentId;
+            }
+            else if (dto.ParentId == null)
+            {
+                category.ParentId = null;
             }
 
-            if (dto.Name != null)
+            if (!string.IsNullOrWhiteSpace(dto.Name) && dto.Name != category.Name)
             {
-                var exists = await _context.Categories.AnyAsync(c =>
-                                    c.Name == dto.Name &&
-                                    c.Id != id &&
-                                    !c.IsDeleted);
+                var nameExists = await _context.Categories
+                    .AnyAsync(c => c.Name == dto.Name && c.Id != id && !c.IsDeleted);
 
-                if (exists)
+                if (nameExists)
                     throw new InvalidOperationException("Category name already exists");
 
-                existingCategory.Name = dto.Name;
+                category.Name = dto.Name;
             }
 
             if (dto.Description != null)
-                existingCategory.Description = dto.Description;
+                category.Description = dto.Description;
+
+            category.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
 
-            return existingCategory.ToDto();
-
-
+            return category.ToDto();
         }
 
         private async Task<bool> IsCircularParentAsync(int categoryId, int newParentId)
         {
-            var parent = await _context.Categories.FirstOrDefaultAsync(c => c.Id == newParentId && !c.IsDeleted);
+            var allCategories = await _context.Categories
+                .Where(c => !c.IsDeleted)
+                .ToDictionaryAsync(c => c.Id);
 
-            while (parent != null)
+            var currentId = newParentId;
+            while (allCategories.TryGetValue(currentId, out var current))
             {
-                if (parent.Id == categoryId)
+                if (current.Id == categoryId)
                     return true;
 
-                if (parent.ParentId == null)
+                if (!current.ParentId.HasValue)
                     break;
 
-                parent = await _context.Categories
-                        .FirstOrDefaultAsync(c => c.Id == parent.ParentId && !c.IsDeleted);
+                currentId = current.ParentId.Value;
             }
 
             return false;
         }
-
     }
 }

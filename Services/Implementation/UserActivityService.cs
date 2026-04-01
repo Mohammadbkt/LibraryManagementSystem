@@ -139,7 +139,7 @@ namespace library.Services.Implementation
         }
 
 
-        public async Task<PagedResult<BookmarkDto>> GetUserBookmarksAsync(BookmarkQueryParam queryParams)
+        public async Task<PagedResult<BookmarkDto>> GetUserBookmarksAsync(string userId, BookmarkQueryParam queryParams)
         {
             var bookmarks = await _context.Bookmarks
                                             .AsNoTracking()
@@ -147,6 +147,7 @@ namespace library.Services.Implementation
                                             .Include(bm => bm.Book)
                                             .Skip((queryParams.Page - 1) * queryParams.PageSize)
                                             .Take(queryParams.PageSize)
+                                            .Where(bm => bm.UserId == userId)
                                             .ToListAsync();
 
             var totalCount = bookmarks.Count();

@@ -27,6 +27,7 @@ namespace library.Services.Interface
 
         // ─── Fines ───────────────────────────────────────────────────────────
         Task<PagedResult<FineDto>> GetUserFinesAsync(string userId, FineQueryParam queryParams);
+        Task<PagedResult<FineDto>> GetAllFinesAsync(FineQueryParam queryParams);
         Task<FineDto> PayFineAsync(string userId, int fineId);
 
         // ─── Admin/Librarian ─────────────────────────────────────────────────
