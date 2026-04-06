@@ -16,6 +16,7 @@ namespace library.Services.Implementation
     {
 
         private readonly AppDbContext _context;
+        private const int MAX_AUTHORS = 20;
 
         public BookService(AppDbContext context)
         {
@@ -24,8 +25,11 @@ namespace library.Services.Implementation
 
         public async Task<BookResponseDto> CreateBookAsync(BookCreateDto dto)
         {
+            if (dto.AuthorIds.Count() > MAX_AUTHORS)
+                throw new InvalidOperationException($"Cannot have more than {MAX_AUTHORS} authors per book.");
+
             var publisherExists = await _context.Publishers.AsNoTracking()
-                .AnyAsync(p => p.Id == dto.PublisherId && !p.IsDeleted);
+                .AnyAsync(p => p.Id == dto.PublisherId);
 
             if (!publisherExists)
                 throw new KeyNotFoundException("Publisher not found");
@@ -36,54 +40,59 @@ namespace library.Services.Implementation
             if (duplicateBook)
                 throw new InvalidOperationException("A book with this title already exists for this publisher");
 
-            var authors = await _context.Authors
-                                .Where(a => dto.AuthorIds.Contains(a.Id) && !a.IsDeleted)
-                                .ToListAsync();
+            var authorCount = await _context.Authors
+                .CountAsync(a => dto.AuthorIds.Contains(a.Id));
 
-            if (authors.Count != dto.AuthorIds.Count())
-                throw new KeyNotFoundException("One or more authors not found");
+            if (authorCount != dto.AuthorIds.Count())
+                throw new KeyNotFoundException("One or more authors not found.");
 
-            var categories = await _context.Categories
-                                .Where(c => dto.CategoryIds.Contains(c.Id))
-                                .ToListAsync();
+            var categoryCount = await _context.Categories
+                .CountAsync(c => dto.CategoryIds.Contains(c.Id));
 
-            if (categories.Count != dto.CategoryIds.Count())
-                throw new KeyNotFoundException("One or more categories not found");
+            if (categoryCount != dto.CategoryIds.Count())
+                throw new KeyNotFoundException("One or more categories not found.");
 
-
-            var book = dto.ToEntity();
-
-            book.BookAuthors = dto.AuthorIds
-                .Select((authorId, index) => new BookAuthor
-                {
-                    AuthorId = authorId,
-                    AuthorOrder = index + 1
-                }).ToList();
-
-            book.BookCategories = dto.CategoryIds
-                .Select(categoryId => new BookCategory
-                {
-                    CategoryId = categoryId
-                }).ToList();
-
-            await _context.Books.AddAsync(book);
-            await _context.SaveChangesAsync();
-
-            var createdBook = await _context.Books
-                                    .AsNoTracking()
-                                    .Include(b => b.BookAuthors.OrderBy(ba => ba.AuthorOrder))
-                                        .ThenInclude(ba => ba.Author)
-                                    .Include(b => b.BookCategories)
-                                        .ThenInclude(bc => bc.Category)
-                                    .Include(b => b.Publisher)
-                                    .FirstOrDefaultAsync(b => b.Id == book.Id);
-
-            return new BookResponseDto()
+            var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                IsSuccess = true,
-                Message = "",
-                Book = book.ToDetailDto()
-            };
+                var book = dto.ToEntity();
+
+                book.BookAuthors = dto.AuthorIds
+                    .Select((authorId, index) => new BookAuthor
+                    {
+                        AuthorId = authorId,
+                        AuthorOrder = index + 1
+                    }).ToList();
+
+                book.BookCategories = dto.CategoryIds
+                    .Select(categoryId => new BookCategory
+                    {
+                        CategoryId = categoryId
+                    }).ToList();
+
+                await _context.Books.AddAsync(book);
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                var createdBook = await _context.Books
+                                        .AsNoTracking()
+                                        .Where(b => b.Id == book.Id)
+                                        .Select(BookMappers.ToDetailDto())
+                                        .FirstOrDefaultAsync();
+
+                return new BookResponseDto()
+                {
+                    IsSuccess = true,
+                    Message = "",
+                    Book = createdBook ?? throw new Exception("Failed to load created book")
+                };
+            }
+            catch (System.Exception)
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+
         }
 
         public async Task DeleteBookAsync(int id)
@@ -108,14 +117,6 @@ namespace library.Services.Implementation
         {
             var bookQuery = _context.Books
                                 .AsNoTracking()
-                                .Include(b => b.BookAuthors)
-                                    .ThenInclude(ba => ba.Author)
-                                .Include(b => b.BookCategories)
-                                    .ThenInclude(bc => bc.Category)
-                                .Include(b => b.Publisher)
-                                .Include(b => b.Editions)
-                                    .ThenInclude(e => e.Items)
-                                .Where(b => !b.IsDeleted)
                                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(queryParams.Search))
@@ -132,13 +133,12 @@ namespace library.Services.Implementation
                             .OrderBy(b => b.Title)
                             .Skip((queryParams.Page - 1) * queryParams.PageSize)
                             .Take(queryParams.PageSize)
+                            .Select(BookMappers.ToSummaryDto())
                             .ToListAsync();
-
-            var bookSummaryDtos = books.Select(b => b.ToSummaryDto()).ToList();
 
             return new PagedResult<BookSummaryDto>
             {
-                Items = bookSummaryDtos,
+                Items = books,
                 TotalCount = totalCount,
                 Page = queryParams.Page,
                 PageSize = queryParams.PageSize
@@ -147,21 +147,11 @@ namespace library.Services.Implementation
 
         public async Task<BookDetailDto?> GetBookByIdAsync(int id)
         {
-            var bookExists = await _context.Books
-                                            .AsNoTracking()
-                                            .Include(b => b.BookAuthors)
-                                                .ThenInclude(ba => ba.Author)
-                                            .Include(b => b.BookCategories)
-                                                .ThenInclude(bc => bc.Category)
-                                            .Include(b => b.Publisher)
-                                            .Include(b => b.Editions)
-                                                .ThenInclude(e => e.Items)
-                                            .FirstOrDefaultAsync(b => b.Id == id && !b.IsDeleted);
-
-            if (bookExists == null)
-                return null;
-
-            return bookExists.ToDetailDto();
+            return await _context.Books
+                            .AsNoTracking()
+                            .Where(b => b.Id == id)
+                            .Select(BookMappers.ToDetailDto())
+                            .FirstOrDefaultAsync();
         }
 
         public async Task<PagedResult<BookSummaryDto>> GetBooksByAuthorAsync(int authorId, BookQueryParams queryParams)
@@ -172,14 +162,7 @@ namespace library.Services.Implementation
 
             var bookQuery = _context.Books
                                     .AsNoTracking()
-                                    .Include(b => b.BookAuthors)
-                                        .ThenInclude(ba => ba.Author)
-                                    .Include(b => b.BookCategories)
-                                        .ThenInclude(bc => bc.Category)
-                                    .Include(b => b.Publisher)
-                                    .Include(b => b.Editions)
-                                        .ThenInclude(e => e.Items)
-                                    .Where(b => b.BookAuthors.Any(ba => ba.AuthorId == authorId) && !b.IsDeleted);
+                                    .Where(b => b.BookAuthors.Any(ba => ba.AuthorId == authorId));
 
             if (!string.IsNullOrWhiteSpace(queryParams.Search))
             {
@@ -195,11 +178,12 @@ namespace library.Services.Implementation
                             .OrderBy(b => b.Title)
                             .Skip((queryParams.Page - 1) * queryParams.PageSize)
                             .Take(queryParams.PageSize)
+                            .Select(BookMappers.ToSummaryDto())
                             .ToListAsync();
 
             return new PagedResult<BookSummaryDto>
             {
-                Items = books.Select(b => b.ToSummaryDto()).ToList(),
+                Items = books,
                 TotalCount = totalCount,
                 Page = queryParams.Page,
                 PageSize = queryParams.PageSize
@@ -215,14 +199,7 @@ namespace library.Services.Implementation
 
             var bookQuery = _context.Books
                                         .AsNoTracking()
-                                        .Include(b => b.BookAuthors)
-                                            .ThenInclude(ba => ba.Author)
-                                        .Include(b => b.BookCategories)
-                                            .ThenInclude(bc => bc.Category)
-                                        .Include(b => b.Publisher)
-                                        .Include(b => b.Editions)
-                                            .ThenInclude(e => e.Items)
-                                        .Where(b => b.BookCategories.Any(bc => bc.CategoryId == categoryId) && !b.IsDeleted);
+                                        .Where(b => b.BookCategories.Any(bc => bc.CategoryId == categoryId));
 
             if (!string.IsNullOrWhiteSpace(queryParams.Search))
             {
@@ -232,18 +209,18 @@ namespace library.Services.Implementation
                         ba.Author.FullName.Contains(queryParams.Search)));
             }
 
-
             var totalCount = await bookQuery.CountAsync();
 
             var books = await bookQuery
                             .OrderBy(b => b.Title)
                             .Skip((queryParams.Page - 1) * queryParams.PageSize)
                             .Take(queryParams.PageSize)
+                            .Select(BookMappers.ToSummaryDto())
                             .ToListAsync();
 
             return new PagedResult<BookSummaryDto>
             {
-                Items = books.Select(b => b.ToSummaryDto()).ToList(),
+                Items = books,
                 TotalCount = totalCount,
                 Page = queryParams.Page,
                 PageSize = queryParams.PageSize
@@ -259,14 +236,7 @@ namespace library.Services.Implementation
 
             var bookQuery = _context.Books
                                     .AsNoTracking()
-                                    .Include(b => b.BookAuthors)
-                                        .ThenInclude(ba => ba.Author)
-                                    .Include(b => b.BookCategories)
-                                        .ThenInclude(bc => bc.Category)
-                                    .Include(b => b.Publisher)
-                                    .Include(b => b.Editions)
-                                        .ThenInclude(e => e.Items)
-                                    .Where(b => b.PublisherId == publisherId && !b.IsDeleted);
+                                    .Where(b => b.PublisherId == publisherId);
 
             if (!string.IsNullOrWhiteSpace(queryParams.Search))
             {
@@ -283,11 +253,12 @@ namespace library.Services.Implementation
                             .OrderBy(b => b.Title)
                             .Skip((queryParams.Page - 1) * queryParams.PageSize)
                             .Take(queryParams.PageSize)
+                            .Select(BookMappers.ToSummaryDto())
                             .ToListAsync();
 
             return new PagedResult<BookSummaryDto>
             {
-                Items = books.Select(b => b.ToSummaryDto()).ToList(),
+                Items = books,
                 TotalCount = totalCount,
                 Page = queryParams.Page,
                 PageSize = queryParams.PageSize
@@ -299,86 +270,89 @@ namespace library.Services.Implementation
             var book = await _context.Books
                                     .Include(b => b.BookAuthors)
                                     .Include(b => b.BookCategories)
-                                    .FirstOrDefaultAsync(b => b.Id == id && !b.IsDeleted);
+                                    .FirstOrDefaultAsync(b => b.Id == id);
 
             if (book == null)
                 throw new KeyNotFoundException("Book not found");
 
-            if (dto.Title != null)
+            var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                var duplicate = await _context.Books
-                    .AnyAsync(b => b.Title == dto.Title && b.PublisherId == (dto.PublisherId ?? book.PublisherId) && b.Id != id);
-                if (duplicate)
-                    throw new InvalidOperationException("A book with this title already exists for this publisher");
-            }
+                if (dto.Title != null)
+                {
+                    var duplicate = await _context.Books
+                        .AnyAsync(b => b.Title == dto.Title && b.PublisherId == (dto.PublisherId ?? book.PublisherId) && b.Id != id);
+                    if (duplicate)
+                        throw new InvalidOperationException("A book with this title already exists for this publisher");
+                }
 
-            if (dto.PublisherId.HasValue)
+                if (dto.PublisherId.HasValue)
+                {
+                    var publisherExists = await _context.Publishers
+                        .AnyAsync(p => p.Id == dto.PublisherId);
+                    if (!publisherExists)
+                        throw new KeyNotFoundException("Publisher not found");
+                }
+
+                if (dto.AuthorIds != null)
+                {
+                    var authors = await _context.Authors
+                        .Where(a => dto.AuthorIds.Contains(a.Id))
+                        .ToListAsync();
+                    if (authors.Count != dto.AuthorIds.Count())
+                        throw new KeyNotFoundException("One or more authors not found");
+
+                    if (dto.AuthorIds.Distinct().Count() != dto.AuthorIds.Count())
+                        throw new InvalidOperationException("Duplicate author IDs are not allowed");
+
+                    book.BookAuthors.Clear();
+                    book.BookAuthors = dto.AuthorIds
+                        .Select((authorId, index) => new BookAuthor
+                        {
+                            BookId = id,
+                            AuthorId = authorId,
+                            AuthorOrder = index + 1
+                        }).ToList();
+                }
+
+                if (dto.CategoryIds != null)
+                {
+                    var categories = await _context.Categories
+                        .Where(c => dto.CategoryIds.Contains(c.Id))
+                        .ToListAsync();
+                    if (categories.Count != dto.CategoryIds.Count())
+                        throw new KeyNotFoundException("One or more categories not found");
+
+                    book.BookCategories.Clear();
+                    book.BookCategories = dto.CategoryIds
+                        .Select(categoryId => new BookCategory
+                        {
+                            BookId = id,
+                            CategoryId = categoryId
+                        }).ToList();
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                var bookToReturn = await _context.Books
+                                        .AsNoTracking()
+                                        .Where(b => b.Id == id)
+                                        .Select(BookMappers.ToDetailDto())
+                                        .FirstOrDefaultAsync();
+
+                if (bookToReturn == null)
+                    throw new Exception("Failed to retrieve updated book");
+
+                return bookToReturn;
+
+            }
+            catch (System.Exception)
             {
-                var publisherExists = await _context.Publishers
-                    .AnyAsync(p => p.Id == dto.PublisherId && !p.IsDeleted);
-                if (!publisherExists)
-                    throw new KeyNotFoundException("Publisher not found");
+                await transaction.RollbackAsync();
+                throw;
             }
-
-            if (dto.AuthorIds != null)
-            {
-                var authors = await _context.Authors
-                    .Where(a => dto.AuthorIds.Contains(a.Id) && !a.IsDeleted)
-                    .ToListAsync();
-                if (authors.Count != dto.AuthorIds.Count())
-                    throw new KeyNotFoundException("One or more authors not found");
-
-                if (dto.AuthorIds.Distinct().Count() != dto.AuthorIds.Count())
-                    throw new InvalidOperationException("Duplicate author IDs are not allowed");
-
-                book.BookAuthors.Clear();
-                book.BookAuthors = dto.AuthorIds
-                    .Select((authorId, index) => new BookAuthor
-                    {
-                        BookId = id,
-                        AuthorId = authorId,
-                        AuthorOrder = index + 1
-                    }).ToList();
-            }
-
-            if (dto.CategoryIds != null)
-            {
-                var categories = await _context.Categories
-                    .Where(c => dto.CategoryIds.Contains(c.Id) && !c.IsDeleted)
-                    .ToListAsync();
-                if (categories.Count != dto.CategoryIds.Count())
-                    throw new KeyNotFoundException("One or more categories not found");
-
-                book.BookCategories.Clear();
-                book.BookCategories = dto.CategoryIds
-                    .Select(categoryId => new BookCategory
-                    {
-                        BookId = id,
-                        CategoryId = categoryId
-                    }).ToList();
-            }
-
-            dto.ApplyUpdate(book);
-            await _context.SaveChangesAsync();
-
-            var bookToReturn = await _context.Books
-                                    .Include(b => b.Publisher)
-                                    .Include(b => b.BookAuthors.OrderBy(ba => ba.AuthorOrder))
-                                        .ThenInclude(ba => ba.Author)
-                                    .Include(b => b.BookCategories)
-                                        .ThenInclude(bc => bc.Category)
-                                    .Include(b => b.Editions.Where(e => !e.IsDeleted))
-                                        .ThenInclude(e => e.Items.Where(i => !i.IsDeleted))
-                                    .AsNoTracking()
-                                    .FirstOrDefaultAsync(b => b.Id == id);
-
-            if (bookToReturn == null)
-                throw new Exception("Failed to retrieve updated book");
-
-            return bookToReturn.ToDetailDto();
-
         }
-
-
     }
 }
+

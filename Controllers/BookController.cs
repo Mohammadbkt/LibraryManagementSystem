@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using library.Dtos.Catalog.Book;
+using library.Dtos.Catalog.Edition;
+using library.Dtos.Catalog.Item;
 using library.Dtos.Circulation.Review;
 using library.Models.Entities;
 using library.Services.Interface;
@@ -70,16 +72,16 @@ namespace library.Controllers
         }
 
         [HttpGet("{id:int}/editions")]
-        public async Task<ActionResult> GetBookEditionsAsync(int id)
+        public async Task<ActionResult> GetBookEditionsAsync(int id, [FromQuery] EditionQueryParams queryParams)
         {
-            var result = await _editionService.GetEditionsByBookAsync(id);
+            var result = await _editionService.GetEditionsByBookAsync(id, queryParams);
             return Ok(result);
         }
 
         [HttpGet("{id:int}/items")]
-        public async Task<ActionResult> GetBookItemsAsync(int id)
+        public async Task<ActionResult> GetBookItemsAsync(int id, [FromQuery] ItemQueryParams queryParams)
         {
-            var result = await _editionService.GetItemsByBookAsync(id);
+            var result = await _editionService.GetItemsByBookAsync(id, queryParams);
             return Ok(result);
         }
 

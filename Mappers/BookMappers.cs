@@ -1,8 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
+using library.Dtos.Catalog.Author;
 using library.Dtos.Catalog.Book;
+using library.Dtos.Catalog.Category;
+using library.Dtos.Catalog.Edition;
+using library.Dtos.Catalog.Publisher;
 using library.Models.Entities;
 using library.Models.Enums;
 
@@ -10,47 +15,83 @@ namespace library.Mappers
 {
     public static class BookMappers
     {
-        public static BookSummaryDto ToSummaryDto(this Book book)
+        public static Expression<Func<Book, BookSummaryDto>> ToSummaryDto()
         {
-            return new BookSummaryDto
+            return b => new BookSummaryDto
             {
-                Id = book.Id,
-                Title = book.Title,
-                CoverImageUrl = book.CoverImageUrl,
-                Authors = book.BookAuthors
+                Id = b.Id,
+                Title = b.Title,
+                CoverImageUrl = b.CoverImageUrl,
+                Authors = b.BookAuthors
                     .OrderBy(ba => ba.AuthorOrder)
                     .Select(ba => ba.Author.FullName)
                     .ToList(),
-                Categories = book.BookCategories
+                Categories = b.BookCategories
                     .Select(bc => bc.Category.Name)
                     .ToList(),
-                PublisherName = book.Publisher?.Name,
-                IsAvailable = book.Editions
+                PublisherName = b.Publisher != null ? b.Publisher.Name : null,
+                IsAvailable = b.Editions
                     .Any(e => e.Items
                         .Any(i => i.ItemStatus == ItemStatus.Available))
             };
         }
 
-        public static BookDetailDto ToDetailDto(this Book book)
+        public static Expression<Func<Book, BookDetailDto>> ToDetailDto()
         {
-            return new BookDetailDto
+            return b => new BookDetailDto
             {
-                Id = book.Id,
-                Title = book.Title,
-                Description = book.Description,
-                CoverImageUrl = book.CoverImageUrl,
-                Authors = book.BookAuthors
-                    .OrderBy(ba => ba.AuthorOrder)
-                    .Select(ba => ba.Author.ToDto())
-                    .ToList(),
-                Categories = book.BookCategories
-                    .Select(bc => bc.Category.ToDto())
-                    .ToList(),
-                Publisher = book.Publisher?.ToDto(),
-                Editions = book.Editions
-                    .Select(e => e.ToDto())
-                    .ToList(),
-                IsAvailable = book.Editions
+                Id = b.Id,
+                Title = b.Title,
+                Description = b.Description,
+                CoverImageUrl = b.CoverImageUrl,
+                Authors = b.BookAuthors
+                .OrderBy(ba => ba.AuthorOrder)
+                .Select(ba => new AuthorDto
+                {
+                    Id = ba.Author.Id,
+                    FullName = ba.Author.FullName,
+                    Bio = ba.Author.Biography,
+                    Nationality = ba.Author.Nationality
+                })
+                .ToList(),
+
+                Categories = b.BookCategories
+                .Select(bc => new CategoryDto
+                {
+                    Id = bc.Category.Id,
+                    Name = bc.Category.Name,
+                    Description = bc.Category.Description,
+                    ParentId = bc.Category.ParentId,
+                    SortOrder = bc.Category.SortOrder
+                })
+                .ToList(),
+
+                Publisher = b.Publisher == null ? null : new PublisherDto
+                {
+                    Id = b.Publisher.Id,
+                    Name = b.Publisher.Name,
+                    Website = b.Publisher.Website
+                },
+
+                Editions = b.Editions
+            .Select(e => new EditionDto
+            {
+                Id = e.Id,
+                BookId = e.BookId,
+                BookTitle = e.Book.Title,
+                ISBN = e.ISBN,
+                EditionNumber = e.EditionNumber,
+                PublicationYear = e.PublicationYear,
+                CoverImageUrl = e.CoverImageUrl,
+                Language = e.Language,
+                PageCount = e.PageCount,
+                Format = e.Format,
+                TotalItems = e.Items.Count(),
+                AvailableItems = e.Items.Count(i => i.ItemStatus == ItemStatus.Available)
+            })
+            .ToList(),
+
+                IsAvailable = b.Editions
                     .Any(e => e.Items
                         .Any(i => i.ItemStatus == ItemStatus.Available))
             };

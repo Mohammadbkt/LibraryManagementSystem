@@ -21,6 +21,9 @@ namespace library.Models.Entities
 
         public ReservationStatus Status { get; set; } = ReservationStatus.Waiting;
         public int QueuePosition { get; set; }
+        
+        [Timestamp]
+        public byte[] RowVersion { get; set; } = null!;
 
         public bool IsDeleted { get; set; } = false;
         public DateTime? DeletedAt { get; set; }

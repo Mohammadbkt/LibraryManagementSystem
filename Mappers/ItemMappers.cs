@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 using library.Dtos.Catalog.Item;
 using library.Models.Entities;
@@ -10,9 +11,9 @@ namespace library.Mappers
 {
     public static class ItemMappers
     {
-        public static ItemDto ToDto(this Item item)
+        public static Expression<Func<Item, ItemDto>> ToDto()
         {
-            return new ItemDto
+            return item => new ItemDto
             {
                 Id = item.Id,
                 EditionId = item.EditionId,

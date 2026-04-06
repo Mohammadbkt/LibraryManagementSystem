@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 using library.Dtos.Circulation.Fine;
 using library.Models.Entities;
@@ -18,18 +19,18 @@ namespace library.Mappers
             ;
         }
 
-        public static FineDto ToDto(this Fine fine)
+        public static Expression<Func<Fine, FineDto>> ToDto()
         {
-            return new FineDto()
+            return f => new FineDto()
             {
-                Id = fine.Id,
-                LoanId = fine.LoanId,
-                BookTitle = fine.Loan.Edition.Book.Title,
-                Amount = fine.Amount,
-                IssuedDate = fine.IssuedDate,
-                PaidDate = fine.PaidDate,
-                Status = fine.Status,
-                Reason = fine.Reason
+                Id = f.Id,
+                LoanId = f.LoanId,
+                BookTitle = f.Loan.Edition.Book.Title,
+                Amount = f.Amount,
+                IssuedDate = f.IssuedDate,
+                PaidDate = f.PaidDate,
+                Status = f.Status,
+                Reason = f.Reason
             }
             ;
         }

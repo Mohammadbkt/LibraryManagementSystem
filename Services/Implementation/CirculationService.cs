@@ -45,15 +45,13 @@ namespace library.Services.Implementation
                     throw new KeyNotFoundException("Reservation not found");
 
                 if (reservation.Status == ReservationStatus.Fulfilled)
-                    throw new InvalidOperationException(
-                        "Cannot cancel a fulfilled reservation");
+                    throw new InvalidOperationException("Cannot cancel a fulfilled reservation");
 
 
                 var remainingReservations = await _context.Reservations
                     .Where(r => r.BookId == reservation.BookId &&
                                 r.Status == ReservationStatus.Waiting &&
-                                r.QueuePosition > reservation.QueuePosition &&
-                                !r.IsDeleted)
+                                r.QueuePosition > reservation.QueuePosition)
                     .ExecuteUpdateAsync(setters =>
                                 setters.SetProperty(r => r.QueuePosition, r => r.QueuePosition - 1));
 
@@ -88,15 +86,24 @@ namespace library.Services.Implementation
                     throw new InvalidOperationException("Cannot checkout — you have unpaid fines");
 
 
-                var item = await _context.Items
-                                            .Include(i => i.Edition)
-                                                .ThenInclude(e => e.Book)
-                                            .FirstOrDefaultAsync(i => i.Id == dto.ItemId);
+                var item = await _context.Items.FirstOrDefaultAsync(i => i.Id == dto.ItemId);
                 if (item == null)
                     throw new KeyNotFoundException($"item not found");
 
                 if (item.ItemStatus != ItemStatus.Available)
                     throw new InvalidOperationException($"Item is not available — current status: {item.ItemStatus}");
+
+                if (item.ItemStatus == ItemStatus.Reserved)
+                {
+                    var activeReservation = await _context.Reservations
+                        .FirstOrDefaultAsync(r => r.ItemId == dto.ItemId && r.Status == ReservationStatus.Ready);
+
+                    if (activeReservation == null || activeReservation.UserId != userId)
+                        throw new InvalidOperationException("This item is being held for another member");
+
+                    activeReservation.Status = ReservationStatus.Expired;
+                    await _context.SaveChangesAsync();
+                }
 
                 var alreadyBorrowed = await _context.Loans.AnyAsync(l => l.UserId == userId && l.Edition.BookId == item.Edition.BookId && l.Status == LoanStatus.Active);
                 if (alreadyBorrowed)
@@ -117,9 +124,14 @@ namespace library.Services.Implementation
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
+                var loanDto = await _context.Loans
+                                    .Where(l => l.Id == loan.Id)
+                                    .Select(LoanMappers.ToDto())
+                                    .FirstOrDefaultAsync() ?? throw new Exception("Failed to retrieve created loan");
+
                 return new CheckoutResponseDto
                 {
-                    Loan = loan.ToDto(),
+                    Loan = loanDto,
                     RemainingLoans = _MaxActiveLoans - (activeLoansCount + 1)
                 };
 
@@ -157,7 +169,7 @@ namespace library.Services.Implementation
             if (alreadyReserved)
                 throw new InvalidOperationException("You already have an active reservation for this book");
 
-            using var transaction = await _context.Database.BeginTransactionAsync();
+            var transaction = await _context.Database.BeginTransactionAsync();
 
             for (int i = 0; i < 3; i++) // retry mechanism
             {
@@ -174,11 +186,16 @@ namespace library.Services.Implementation
 
                     await transaction.CommitAsync();
 
-                    return reservation.ToDto();
+                    return await _context.Reservations
+                                        .Where(r => r.Id == reservation.Id)
+                                        .AsNoTracking()
+                                        .Select(ReservationMappers.ToDto())
+                                        .FirstOrDefaultAsync() ?? throw new Exception("Failed to retrieve created reservation");
                 }
-                catch (DbUpdateException)
+                catch (DbUpdateConcurrencyException)
                 {
-
+                    await transaction.RollbackAsync();
+                    transaction = await _context.Database.BeginTransactionAsync();
                 }
             }
 
@@ -187,9 +204,7 @@ namespace library.Services.Implementation
 
         public async Task<LoanDto> ExtendLoanAsync(int loanId)
         {
-            var loan = await _context.Loans
-                                    .Include(l => l.Edition)
-                                    .FirstOrDefaultAsync(l => l.Id == loanId);
+            var loan = await _context.Loans.FirstOrDefaultAsync(l => l.Id == loanId);
             if (loan == null)
                 throw new KeyNotFoundException("Loan not found");
 
@@ -208,7 +223,11 @@ namespace library.Services.Implementation
 
             await _context.SaveChangesAsync();
 
-            return loan.ToDto();
+            return await _context.Loans
+                                .Where(l => l.Id == loanId)
+                                .AsNoTracking()
+                                .Select(LoanMappers.ToDto())
+                                .FirstOrDefaultAsync() ?? throw new Exception("Failed to retrieve updated loan");
         }
 
         public async Task<LoanDto> FulfillReservationAsync(int reservationId)
@@ -216,11 +235,7 @@ namespace library.Services.Implementation
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                var reservation = await _context.Reservations
-                    .Include(r => r.Item)
-                        .ThenInclude(i => i.Edition)
-                            .ThenInclude(e => e.Book)
-                    .FirstOrDefaultAsync(r => r.Id == reservationId);
+                var reservation = await _context.Reservations.FirstOrDefaultAsync(r => r.Id == reservationId);
 
                 if (reservation == null)
                     throw new KeyNotFoundException("Reservation not found");
@@ -229,7 +244,12 @@ namespace library.Services.Implementation
                     throw new InvalidOperationException("Reservation is not ready");
 
                 if (reservation.ExpiryDate < DateTime.UtcNow)
+                {
+                    reservation.Status = ReservationStatus.Cancelled;
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
                     throw new InvalidOperationException("Reservation has expired");
+                }
 
                 if (reservation.ItemId == null || reservation.Item == null)
                     throw new InvalidOperationException(
@@ -254,7 +274,10 @@ namespace library.Services.Implementation
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                return loan.ToDto();
+                return await _context.Loans
+                                    .Where(l => l.Id == loan.Id)
+                                    .Select(LoanMappers.ToDto())
+                                    .FirstOrDefaultAsync() ?? throw new Exception("Failed to retrieve created loan");
             }
             catch
             {
@@ -273,20 +296,18 @@ namespace library.Services.Implementation
 
             var totalCount = await reservationQuery.CountAsync();
 
-            var reservations = await reservationQuery
-                                                .Include(r => r.Book)
-                                                .Include(r => r.User)
+            var reservationDtos = await reservationQuery
                                                 .AsNoTracking()
                                                 .OrderByDescending(r => r.ReservationDate)
                                                 .Skip((queryParams.Page - 1) * queryParams.PageSize)
                                                 .Take(queryParams.PageSize)
+                                                .Select(ReservationMappers.ToDto())
                                                 .ToListAsync();
 
-            var reservationsDto = reservations.Select(r => r.ToDto());
 
             return new PagedResult<ReservationDto>()
             {
-                Items = reservationsDto,
+                Items = reservationDtos,
                 TotalCount = totalCount,
                 Page = queryParams.Page,
                 PageSize = queryParams.PageSize
@@ -294,30 +315,20 @@ namespace library.Services.Implementation
         }
         public async Task<LoanDto?> GetLoanByIdAsync(int loanId)
         {
-            var loan = await _context.Loans
-                                    .Include(l => l.Item)
-                                        .ThenInclude(i => i.Edition)
-                                            .ThenInclude(e => e.Book)
-                                    .Include(l => l.Fine)
-                                    .Include(l => l.User)
-                                    .FirstOrDefaultAsync(l => l.Id == loanId);
-            if (loan == null)
-                throw new KeyNotFoundException("Loan not found");
-
-            return loan.ToDto();
+            return await _context.Loans
+                                .Where(l => l.Id == loanId)
+                                .AsNoTracking()
+                                .Select(LoanMappers.ToDto())
+                                .FirstOrDefaultAsync();
         }
 
         public async Task<ReservationDto?> GetReservationByIdAsync(int reservationId)
         {
-            var reservation = await _context.Reservations
-                                        .Include(r => r.Book)
-                                        .Include(r => r.User)
-                                        .FirstOrDefaultAsync(r => r.Id == reservationId);
-
-            if (reservation == null)
-                throw new KeyNotFoundException("Reservation not found");
-
-            return reservation.ToDto();
+            return await _context.Reservations
+                                        .AsNoTracking()
+                                        .Where(r => r.Id == reservationId)
+                                        .Select(ReservationMappers.ToDto())
+                                        .FirstOrDefaultAsync();
         }
 
         public async Task<PagedResult<FineDto>> GetUserFinesAsync(string userId, FineQueryParam queryParams)
@@ -336,21 +347,18 @@ namespace library.Services.Implementation
 
             var totalCount = await fineQuery.CountAsync();
 
-            var fines = await fineQuery
-                                .Include(f => f.Loan)
-                                    .ThenInclude(l => l.Edition)
-                                        .ThenInclude(e => e.Book)
+            var fineDtos = await fineQuery
                                 .Skip((queryParams.Page - 1) * queryParams.PageSize)
                                 .Take(queryParams.PageSize)
                                 .AsNoTracking()
                                 .OrderByDescending(f => f.Amount)
+                                .Select(FineMappers.ToDto())
                                 .ToListAsync();
 
-            var finesDto = fines.Select(f => f.ToDto());
 
             return new PagedResult<FineDto>()
             {
-                Items = finesDto,
+                Items = fineDtos,
                 TotalCount = totalCount,
                 Page = queryParams.Page,
                 PageSize = queryParams.PageSize
@@ -373,23 +381,18 @@ namespace library.Services.Implementation
 
             var totalCount = await loanQuery.CountAsync();
 
-            var loans = await loanQuery
+            var loanDtos = await loanQuery
                                 .AsNoTracking()
-                                .Include(l => l.Item)
-                                    .ThenInclude(i => i.Edition)
-                                        .ThenInclude(e => e.Book)
-                                .Include(l => l.Fine)
-                                .Include(l => l.User)
                                 .OrderByDescending(l => l.BorrowDate)
                                 .Skip((queryParams.Page - 1) * queryParams.PageSize)
                                 .Take(queryParams.PageSize)
+                                .Select(LoanMappers.ToDto())
                                 .ToListAsync();
 
-            var loansDto = loans.Select(l => l.ToDto());
 
             return new PagedResult<LoanDto>()
             {
-                Items = loansDto,
+                Items = loanDtos,
                 TotalCount = totalCount,
                 Page = queryParams.Page,
                 PageSize = queryParams.PageSize
@@ -412,19 +415,20 @@ namespace library.Services.Implementation
             var totalCount = await reservationQuery.CountAsync();
 
             var reservations = await reservationQuery
-                                                .Include(r => r.Book)
-                                                .Include(r => r.User)
-                                                .AsNoTracking()
-                                                .OrderByDescending(r => r.ReservationDate)
-                                                .Skip((queryParams.Page - 1) * queryParams.PageSize)
-                                                .Take(queryParams.PageSize)
+
                                                 .ToListAsync();
 
-            var reservationsDto = reservations.Select(r => r.ToDto());
+            var reservationsDtos = await reservationQuery
+                                            .AsNoTracking()
+                                            .OrderByDescending(r => r.ReservationDate)
+                                            .Skip((queryParams.Page - 1) * queryParams.PageSize)
+                                            .Take(queryParams.PageSize)
+                                            .Select(ReservationMappers.ToDto())
+                                            .ToListAsync();
 
             return new PagedResult<ReservationDto>()
             {
-                Items = reservationsDto,
+                Items = reservationsDtos,
                 TotalCount = totalCount,
                 Page = queryParams.Page,
                 PageSize = queryParams.PageSize
@@ -439,12 +443,7 @@ namespace library.Services.Implementation
                 throw new KeyNotFoundException($"User with ID {userId} not found");
 
 
-            var fine = await _context.Fines
-                .Include(f => f.Loan)
-                    .ThenInclude(l => l.Item)
-                        .ThenInclude(i => i.Edition)
-                            .ThenInclude(e => e.Book)
-                .FirstOrDefaultAsync(f => f.Id == fineId && f.UserId == userId);
+            var fine = await _context.Fines.FirstOrDefaultAsync(f => f.Id == fineId && f.UserId == userId);
 
             if (fine == null)
                 throw new KeyNotFoundException("Fine not found");
@@ -457,7 +456,12 @@ namespace library.Services.Implementation
 
             await _context.SaveChangesAsync();
 
-            return fine.ToDto();
+            return await _context.Fines
+                                .Where(f => f.Id == fineId)
+                                .AsNoTracking()
+                                .Select(FineMappers.ToDto())
+                                .FirstOrDefaultAsync() ?? throw new Exception("Failed to retrieve updated fine");
+
         }
 
         public async Task<LoanDto> ReturnItemAsync(int loanId, ReturnDto dto)
@@ -467,12 +471,7 @@ namespace library.Services.Implementation
 
             try
             {
-                var loan = await _context.Loans
-                                    .Include(l => l.Item)
-                                        .ThenInclude(i => i.Edition)
-                                            .ThenInclude(e => e.Book)
-                                    .Include(l => l.Fine)
-                                    .FirstOrDefaultAsync(l => l.Id == loanId);
+                var loan = await _context.Loans.FirstOrDefaultAsync(l => l.Id == loanId);
 
                 if (loan == null)
                     throw new KeyNotFoundException("Loan not found");
@@ -523,7 +522,11 @@ namespace library.Services.Implementation
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                return loan.ToDto();
+                return await _context.Loans
+                                    .Where(l => l.Id == loanId)
+                                    .Select(LoanMappers.ToDto())
+                                    .FirstOrDefaultAsync() ?? throw new Exception("Failed to retrieve updated loan");
+
             }
             catch
             {
@@ -545,23 +548,19 @@ namespace library.Services.Implementation
 
             var totalCount = await loanQuery.CountAsync();
 
-            var loans = await loanQuery
-                                .Include(l => l.Item)
-                                    .ThenInclude(i => i.Edition)
-                                        .ThenInclude(e => e.Book)
-                                .Include(l => l.Fine)
-                                .Include(l => l.User)
+            var loanDtos = await loanQuery
+
                                 .AsNoTracking()
                                 .OrderByDescending(l => l.BorrowDate)
                                 .Skip((queryParams.Page - 1) * queryParams.PageSize)
                                 .Take(queryParams.PageSize)
+                                .Select(LoanMappers.ToDto())
                                 .ToListAsync();
 
-            var loansDto = loans.Select(l => l.ToDto());
 
             return new PagedResult<LoanDto>()
             {
-                Items = loansDto,
+                Items = loanDtos,
                 TotalCount = totalCount,
                 Page = queryParams.Page,
                 PageSize = queryParams.PageSize
@@ -575,28 +574,23 @@ namespace library.Services.Implementation
             if (queryParams.Amount != 0)
                 fineQuery = fineQuery.Where(f => f.Amount == queryParams.Amount);
 
-            if(!string.IsNullOrWhiteSpace(queryParams.Status) && Enum.TryParse<FineStatus>(queryParams.Status, out var status))
+            if (!string.IsNullOrWhiteSpace(queryParams.Status) && Enum.TryParse<FineStatus>(queryParams.Status, out var status))
                 fineQuery = fineQuery.Where(f => f.Status == status);
 
             var totalCount = await fineQuery.CountAsync();
 
-            var fines = await fineQuery
-                                .Include(f => f.Loan)
-                                    .ThenInclude(l => l.Item)
-                                        .ThenInclude(i => i.Edition)
-                                            .ThenInclude(e => e.Book)
-                                .Include(f => f.User)
+            var fineDtos = await fineQuery
                                 .Skip((queryParams.Page - 1) * queryParams.PageSize)
                                 .Take(queryParams.PageSize)
                                 .AsNoTracking()
                                 .OrderByDescending(f => f.Amount)
+                                .Select(FineMappers.ToDto())
                                 .ToListAsync();
 
-            var finesDto = fines.Select(f => f.ToDto());
 
             return new PagedResult<FineDto>()
             {
-                Items = finesDto,
+                Items = fineDtos,
                 TotalCount = totalCount,
                 Page = queryParams.Page,
                 PageSize = queryParams.PageSize

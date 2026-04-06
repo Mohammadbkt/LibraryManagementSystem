@@ -33,10 +33,12 @@ namespace library.Controllers
         }
 
         [HttpPost("{bookId}")]
-        public async Task<IActionResult> AddBookmarkAsync(AddBookmarkDto dto, [FromBody] string? notes)
+        public async Task<IActionResult> AddBookmarkAsync([FromBody] AddBookmarkDto dto)
         {
             var userId = _userManager.GetUserId(User);
-            if (userId == null) return Unauthorized();
+            if (userId == null) 
+                return Unauthorized();
+
             await _userActivityService.AddBookmarkAsync(userId, dto);
             return Ok(new { message = "Bookmark added successfully" });
         }

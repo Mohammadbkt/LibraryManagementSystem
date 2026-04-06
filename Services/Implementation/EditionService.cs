@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using library.Data;
 using library.Dtos.Catalog.Edition;
 using library.Dtos.Catalog.Item;
+using library.Dtos.Common;
 using library.Mappers;
 using library.Models.Enums;
 using library.Services.Interface;
@@ -29,24 +30,33 @@ namespace library.Services.Implementation
             if (!bookExists)
                 throw new KeyNotFoundException("Book not found");
 
-            var duplicateEdition = await _context.Editions
-            .AnyAsync(e => e.BookId == dto.BookId && e.EditionNumber == dto.EditionNumber);
-
-            if (duplicateEdition)
-                throw new InvalidOperationException($"Edition {dto.EditionNumber} already exists for this book");
-
-
-            var isbnExists = await _context.Editions.AnyAsync(e => e.ISBN == dto.ISBN);
-            if (isbnExists)
-                throw new InvalidOperationException("ISBN already exists");
-
             var edition = dto.ToEntity();
 
             await _context.Editions.AddAsync(edition);
 
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex) when (ex.InnerException != null)
+            {
+                var message = ex.InnerException.Message;
 
-            return edition.ToDto();
+                if (message.Contains("IX_Editions_ISBN"))
+                    throw new InvalidOperationException("ISBN already exists");
+
+                if (message.Contains("IX_Editions_BookId_EditionNumber"))
+                    throw new InvalidOperationException(
+                        $"Edition {dto.EditionNumber} already exists for this book");
+
+                throw;
+            }
+
+            return await _context.Editions
+                .AsNoTracking()
+                .Where(e => e.Id == edition.Id)
+                .Select(EditionMappers.ToDto())
+                .FirstAsync();
         }
 
         public async Task<ItemDto> CreateItemAsync(ItemCreateDto dto)
@@ -55,26 +65,34 @@ namespace library.Services.Implementation
             if (!editionExists)
                 throw new KeyNotFoundException("Edition not found");
 
-            var barcodeExists = await _context.Items
-                .AnyAsync(i => i.Barcode == dto.Barcode);
-
-            if (barcodeExists)
-                throw new InvalidOperationException("Barcode already exists");
-
             var item = dto.ToEntity();
 
             await _context.Items.AddAsync(item);
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex)
+            {
+                if (ex.InnerException?.Message.Contains("IX_Items_Barcode") == true)
+                    throw new InvalidOperationException("Barcode already exists");
 
-            return item.ToDto();
+                throw;
+            }
+
+            return await _context.Items
+                .AsNoTracking()
+                .Where(i => i.Id == item.Id)
+                .Select(ItemMappers.ToDto())
+                .FirstAsync();
         }
 
         public async Task DeleteEditionAsync(int id)
         {
-            var edition = await _context.Editions.FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
+            var edition = await _context.Editions.FirstOrDefaultAsync(e => e.Id == id);
             if (edition == null)
                 throw new KeyNotFoundException($"Edition with id {id} not found");
-                
+
             var hasItems = await _context.Items.AnyAsync(i => i.EditionId == id);
 
             if (hasItems)
@@ -102,83 +120,157 @@ namespace library.Services.Implementation
             await _context.SaveChangesAsync();
         }
 
-        public async Task<IEnumerable<ItemDto>> GetAvailableItemsAsync(int editionId)
+        public async Task<PagedResult<ItemDto>> GetAvailableItemsAsync(int editionId, ItemQueryParams queryParams)
         {
-            var items = await _context.Items
-                            .Where(i => i.EditionId == editionId && i.ItemStatus == ItemStatus.Available)
-                            .OrderBy(i => i.Barcode)
-                            .AsNoTracking()
-                            .ToListAsync();
+            var ItemQuery = _context.Items
+                                    .AsNoTracking()
+                                    .AsQueryable();
 
-            return items.Select(i => i.ToDto()).ToList();
+            if (!string.IsNullOrWhiteSpace(queryParams.Search))
+            {
+                ItemQuery = ItemQuery.Where(i => i.Location!.Contains(queryParams.Search));
+            }
+
+            var totalCount = await ItemQuery.CountAsync();
+
+            var itemDtos = await ItemQuery
+                                    .AsNoTracking()
+                                    .Where(i => i.EditionId == editionId)
+                                    .OrderBy(i => i.Price)
+                                    .Skip((queryParams.Page - 1) * queryParams.PageSize)
+                                    .Take(queryParams.PageSize)
+                                    .Select(ItemMappers.ToDto())
+                                    .ToListAsync();
+
+            return new PagedResult<ItemDto>
+            {
+                Items = itemDtos,
+                TotalCount = totalCount,
+                Page = queryParams.Page,
+                PageSize = queryParams.PageSize
+            };
+
         }
 
         public async Task<EditionDto?> GetEditionByIdAsync(int id)
         {
-            var edition = await _context.Editions
-                                .Include(e => e.Items.Where(i => !i.IsDeleted))
-                                .FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
-
-            if (edition == null)
-                return null;
-
-            return edition.ToDto();
+            return await _context.Editions
+                            .AsNoTracking()
+                            .Where(e => e.Id == id)
+                            .Select(EditionMappers.ToDto())
+                            .FirstOrDefaultAsync();
         }
 
-        public async Task<IEnumerable<EditionDto>> GetEditionsByBookAsync(int bookId)
+        public async Task<PagedResult<EditionDto>> GetEditionsByBookAsync(int bookId, EditionQueryParams queryParams)
         {
-            var bookExists = await _context.Books.AnyAsync(b => b.Id == bookId);
-            if (!bookExists)
-                throw new KeyNotFoundException("Book not found");
+            var EditionQuery = _context.Editions
+                                    .AsNoTracking()
+                                    .AsQueryable();
 
-            var editions = await _context.Editions
-                            .Where(e => e.BookId == bookId && !e.IsDeleted)
-                            .OrderBy(e => e.EditionNumber)
-                            .AsNoTracking()
-                            .ToListAsync();
+            if (!string.IsNullOrWhiteSpace(queryParams.Search))
+            {
+                EditionQuery = EditionQuery.Where(e => e.ISBN.Contains(queryParams.Search));
+            }
 
-            return editions.Select(e => e.ToDto()).ToList();
+            var totalCount = await EditionQuery.CountAsync();
+
+            var editionDtos = await EditionQuery
+                                    .AsNoTracking()
+                                    .Where(e => e.BookId == bookId)
+                                    .OrderBy(e => e.EditionNumber)
+                                    .Skip((queryParams.Page - 1) * queryParams.PageSize)
+                                    .Take(queryParams.PageSize)
+                                    .Select(EditionMappers.ToDto())
+                                    .ToListAsync();
+
+
+            return new PagedResult<EditionDto>
+            {
+                Items = editionDtos,
+                TotalCount = totalCount,
+                Page = queryParams.Page,
+                PageSize = queryParams.PageSize
+            };
+
         }
 
         public async Task<ItemDto?> GetItemByIdAsync(int id)
         {
-            var item = await _context.Items.FirstOrDefaultAsync(i => i.Id == id && !i.IsDeleted);
-            if (item == null)
-                return null;
-
-            return item.ToDto();
+            return await _context.Items
+                            .AsNoTracking()
+                            .Where(i => i.Id == id && !i.IsDeleted)
+                            .Select(ItemMappers.ToDto())
+                            .FirstOrDefaultAsync();
         }
 
-        public async Task<IEnumerable<ItemDto>> GetItemsByBookAsync(int bookId)
+        public async Task<PagedResult<ItemDto>> GetItemsByBookAsync(int bookId, ItemQueryParams queryParams)
         {
-            var editonExists = await _context.Books.FirstOrDefaultAsync(e => e.Id == bookId);
-            if (editonExists == null)
+
+            var bookExists = await _context.Books.AnyAsync(b => b.Id == bookId);
+            if (!bookExists)
                 throw new KeyNotFoundException($"Book with id {bookId} not found");
 
-            var items = await _context.Items
-                                .Include(i => i.Edition)
+            
+            var ItemQuery = _context.Items
+                                    .AsNoTracking()
+                                    .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(queryParams.Search))
+            {
+                ItemQuery = ItemQuery.Where(i => i.Location!.Contains(queryParams.Search));
+            }
+
+            var totalCount = await ItemQuery.CountAsync();
+
+            var itemDtos = await ItemQuery
+                                .AsNoTracking()
                                 .Where(i => i.Edition.BookId == bookId)
                                 .OrderBy(i => i.Price)
-                                .AsNoTracking()
+                                .Skip((queryParams.Page - 1) * queryParams.PageSize)
+                                .Take(queryParams.PageSize)
+                                .Select(ItemMappers.ToDto())
                                 .ToListAsync();
 
-            return items.Select(i => i.ToDto()).ToList();
 
+
+            return new PagedResult<ItemDto>
+            {
+                Items = itemDtos,
+                TotalCount = totalCount,
+                Page = queryParams.Page,
+                PageSize = queryParams.PageSize
+            };
         }
 
-        public async Task<IEnumerable<ItemDto>> GetItemsByEditionAsync(int editionId)
+        public async Task<PagedResult<ItemDto>> GetItemsByEditionAsync(int editionId, ItemQueryParams queryParams)
         {
-            var editonExists = await _context.Editions.FirstOrDefaultAsync(e => e.Id == editionId && !e.IsDeleted);
-            if (editonExists == null)
-                throw new InvalidOperationException($"Edition with this id : {editionId} does not exists");
+            var ItemQuery = _context.Items
+                                    .AsQueryable();
 
-            var items = await _context.Items
-                                .OrderBy(i => i.Price)
-                                .AsNoTracking()
-                                .Where(i => i.EditionId == editionId)
-                                .ToListAsync();
+            if (!string.IsNullOrWhiteSpace(queryParams.Search))
+            {
+                ItemQuery = ItemQuery.Where(i => i.Location != null && i.Location.Contains(queryParams.Search));
+            }
 
-            return items.Select(i => i.ToDto()).ToList();
+            var totalCount = await ItemQuery.CountAsync();
+
+            var itemDtos = await ItemQuery
+                                    .AsNoTracking()
+                                    .Where(i => i.EditionId == editionId)
+                                    .OrderBy(i => i.Price)
+                                    .Skip((queryParams.Page - 1) * queryParams.PageSize)
+                                    .Take(queryParams.PageSize)
+                                    .Select(ItemMappers.ToDto())
+                                    .ToListAsync();
+
+            return new PagedResult<ItemDto>
+            {
+                Items = itemDtos,
+                TotalCount = totalCount,
+                Page = queryParams.Page,
+                PageSize = queryParams.PageSize
+            };
+
         }
 
         public async Task<EditionDto> UpdateEditionAsync(int id, EditionUpdateDto dto)
@@ -188,18 +280,6 @@ namespace library.Services.Implementation
 
             if (edition == null)
                 throw new KeyNotFoundException("Edition not found");
-
-            if (dto.EditionNumber != null)
-            {
-                var duplicate = await _context.Editions
-                    .AnyAsync(e => e.BookId == edition.BookId &&
-                                   e.EditionNumber == dto.EditionNumber &&
-                                   e.Id != id);
-
-                if (duplicate)
-                    throw new InvalidOperationException(
-                        $"Edition {dto.EditionNumber} already exists for this book");
-            }
 
             if (dto.EditionNumber != null)
                 edition.EditionNumber = dto.EditionNumber.Value;
@@ -225,27 +305,37 @@ namespace library.Services.Implementation
             if (dto.Language != null)
                 edition.Language = dto.Language;
 
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex)
+            {
+                var msg = ex.InnerException?.Message;
 
-            return edition.ToDto();
+                if (msg?.Contains("IX_Editions_ISBN") == true)
+                    throw new InvalidOperationException("ISBN already exists");
+
+                if (msg?.Contains("IX_Editions_BookId_EditionNumber") == true)
+                    throw new InvalidOperationException("Duplicate edition number");
+
+                throw;
+            }
+
+            return await _context.Editions
+                .AsNoTracking()
+                .Where(e => e.Id == id)
+                .Select(EditionMappers.ToDto())
+                .FirstAsync();
         }
 
         public async Task<ItemDto> UpdateItemAsync(int id, ItemUpdateDto dto)
         {
             var item = await _context.Items
-                .FirstOrDefaultAsync(i => i.Id == id);
+                                .FirstOrDefaultAsync(i => i.Id == id);
 
             if (item == null)
                 throw new KeyNotFoundException("Item not found");
-
-            if (dto.Barcode != null)
-            {
-                var barcodeExists = await _context.Items
-                    .AnyAsync(i => i.Barcode == dto.Barcode && i.Id != id);
-
-                if (barcodeExists)
-                    throw new InvalidOperationException("Barcode already exists");
-            }
 
             if (dto.Barcode != null)
                 item.Barcode = dto.Barcode;
@@ -256,15 +346,38 @@ namespace library.Services.Implementation
             if (dto.Location != null)
                 item.Location = dto.Location;
 
-            if (dto.ItemStatus != null)
-                item.ItemStatus = Enum.Parse<ItemStatus>(dto.ItemStatus);
-
             if (dto.Price != null)
                 item.Price = dto.Price.Value;
 
-            await _context.SaveChangesAsync();
+            if (dto.ItemStatus != null)
+            {
+                if (!Enum.TryParse<ItemStatus>(dto.ItemStatus, true, out var status))
+                    throw new ArgumentException("Invalid item status");
 
-            return item.ToDto();
+                item.ItemStatus = status;
+            }
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex)
+            {
+                var msg = ex.InnerException?.Message;
+
+                if (msg?.Contains("IX_Editions_ISBN") == true)
+                    throw new InvalidOperationException("ISBN already exists");
+
+                if (msg?.Contains("IX_Editions_BookId_EditionNumber") == true)
+                    throw new InvalidOperationException("Duplicate edition number");
+
+                throw;
+            }
+            return await _context.Items
+                .AsNoTracking()
+                .Where(i => i.Id == id)
+                .Select(ItemMappers.ToDto())
+                .FirstAsync();
         }
     }
 }

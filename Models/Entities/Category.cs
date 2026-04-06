@@ -26,9 +26,5 @@ namespace library.Models.Entities
 
         public ICollection<BookCategory> BookCategories { get; set; } = new List<BookCategory>();
 
-        internal CategoryDto ToDto()
-        {
-            throw new NotImplementedException();
-        }
     }
 }

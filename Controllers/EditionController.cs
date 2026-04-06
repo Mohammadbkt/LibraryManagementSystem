@@ -1,4 +1,5 @@
 using library.Dtos.Catalog.Edition;
+using library.Dtos.Catalog.Item;
 using library.Services.Interface;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -48,16 +49,16 @@ namespace library.Controllers
         }
 
         [HttpGet("{id:int}/items")]
-        public async Task<IActionResult> GetItemsByEditionAsync(int id)
+        public async Task<IActionResult> GetItemsByEditionAsync(int id, [FromQuery] ItemQueryParams queryParams)
         {
-            var result = await _editionService.GetItemsByEditionAsync(id);
+            var result = await _editionService.GetItemsByEditionAsync(id, queryParams);
             return Ok(result);
         }
 
         [HttpGet("{id:int}/items/available")]
-        public async Task<IActionResult> GetAvailableItemsAsync(int id)
+        public async Task<IActionResult> GetAvailableItemsAsync(int id, [FromQuery] ItemQueryParams queryParams)
         {
-            var result = await _editionService.GetAvailableItemsAsync(id);
+            var result = await _editionService.GetAvailableItemsAsync(id, queryParams);
             return Ok(result);
         }
     }

@@ -1,31 +1,49 @@
+using System.Linq.Expressions;
 using library.Dtos.Catalog.Author;
+using library.Dtos.Catalog.Book;
 using library.Models.Entities;
 
 namespace library.Mappers
 {
     public static class AuthorMapper
     {
-        public static AuthorDto ToDto(this Author author)
+        public static Expression<Func<Author, AuthorDto>> ToDto()
         {
-            return new AuthorDto
+            return a => new AuthorDto
             {
-                Id = author.Id,
-                FullName = author.FullName,
-                Bio = author.Biography,
-                Nationality = author.Nationality
+                Id = a.Id,
+                FullName = a.FullName,
+                Bio = a.Biography,
+                Nationality = a.Nationality
             };
         }
 
-        public static AuthorDetailDto ToDetailDto(this Author author)
+        public static Expression<Func<Author, AuthorDetailDto>> ToDetailDto()
         {
-            return new AuthorDetailDto
+            return a => new AuthorDetailDto
             {
-                Id = author.Id,
-                FullName = author.FullName,
-                Bio = author.Biography,
-                Nationality = author.Nationality,
-                Books = author.BookAuthors.Select(ba => ba.Book.ToSummaryDto())
-            .ToList()
+                Id = a.Id,
+                FullName = a.FullName,
+                Bio = a.Biography,
+                Nationality = a.Nationality,
+                Books = a.BookAuthors.Select(ba => new BookSummaryDto
+                {
+                    Id = ba.Book.Id,
+                    Title = ba.Book.Title,
+                    CoverImageUrl = ba.Book.CoverImageUrl,
+                    PublisherName = ba.Book.Publisher != null ? ba.Book.Publisher.Name : null,
+                    Authors = ba.Book.BookAuthors
+                        .OrderBy(ba => ba.AuthorOrder)
+                        .Select(ba => ba.Author.FullName)
+                        .ToList(),
+
+                    Categories = ba.Book.BookCategories
+                        .Select(bc => bc.Category.Name),
+
+                    IsAvailable = ba.Book.Editions
+                        .Any(e => e.Items
+                            .Any(i => i.ItemStatus == Models.Enums.ItemStatus.Available))
+                }).ToList()
             };
         }
 

@@ -24,6 +24,10 @@ namespace library.Data.EntityConfiguration
                     .IsUnique()
                     .HasDatabaseName("IX_Editions_ISBN");
 
+            builder.HasIndex(e=>new { e.BookId, e.EditionNumber })
+                    .IsUnique()
+                    .HasDatabaseName("IX_Editions_BookId_EditionNumber");
+
             builder.Property(e => e.CoverImageUrl)
                 .HasMaxLength(500);
                 

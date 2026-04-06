@@ -443,7 +443,8 @@ namespace library.Data
                         Format = formats[random.Next(formats.Length)],
                         PublicationYear = 2020 - e,
                         PageCount = 300 + (e * 50),
-                        CreatedAt = DateTime.UtcNow
+                        CreatedAt = DateTime.UtcNow,
+                        EditionNumber = e - 1
                     };
 
                     await context.Editions.AddAsync(edition);

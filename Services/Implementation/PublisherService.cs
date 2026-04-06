@@ -34,7 +34,11 @@ namespace library.Services.Implementation
 
             await _context.SaveChangesAsync();
 
-            return PublisherToAdd.ToDto();
+            return await _context.Publishers
+                .AsNoTracking()
+                .Where(p => p.Id == PublisherToAdd.Id)
+                .Select(PublisherMappers.ToDto())
+                .FirstAsync();
         }
 
         public async Task DeletePublisherAsync(int id)
@@ -64,14 +68,14 @@ namespace library.Services.Implementation
 
             var totalCount = await publishersQuery.CountAsync();
 
-            var publishers = await publishersQuery
+            var publisherDtos = await publishersQuery
+                .AsNoTracking()
                 .OrderBy(p => p.Name)
                 .Skip((queryParams.Page - 1) * queryParams.PageSize)
                 .Take(queryParams.PageSize)
-                .AsNoTracking()
+                .Select(PublisherMappers.ToDto())
                 .ToListAsync();
 
-            var publisherDtos = publishers.Select(c => c.ToDto()).ToList();
 
             return new PagedResult<PublisherDto>
             {
@@ -84,11 +88,12 @@ namespace library.Services.Implementation
 
         public async Task<PublisherDto?> GetPublisherByIdAsync(int id)
         {
-            var existingPublisher = await _context.Publishers.FirstOrDefaultAsync(p => p.Id == id);
-            if (existingPublisher == null)
-                return null;
+            return await _context.Publishers
+                .AsNoTracking()
+                .Where(p => p.Id == id)
+                .Select(PublisherMappers.ToDto())
+                .FirstOrDefaultAsync();
 
-            return existingPublisher.ToDto();
         }
 
         public async Task<PublisherDto> UpdatePublisherAsync(int id, PublisherUpdateDto dto)
@@ -105,7 +110,12 @@ namespace library.Services.Implementation
 
             await _context.SaveChangesAsync();
 
-            return existingPublisher.ToDto();
+            return await _context.Publishers
+                .AsNoTracking()
+                .Where(p => p.Id == id)
+                .Select(PublisherMappers.ToDto())
+                .FirstAsync();
+
         }
     }
 }

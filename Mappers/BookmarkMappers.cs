@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 using library.Dtos.Circulation.Bookmark;
 using library.Models.Entities;
@@ -19,16 +20,13 @@ namespace library.Mappers
             };
         }
 
-        public static BookmarkDto ToDto(this Bookmark bookmark)
+        public static Expression<Func<Bookmark, BookmarkDto>> ToDto() => bookmark => new BookmarkDto()
         {
-            return new BookmarkDto()
-            {
-                BookId = bookmark.BookId,
-                BookTitle = bookmark.Book.Title,
-                CoverImageUrl = bookmark.Book.CoverImageUrl,
-                Notes = bookmark.Notes,
-                CreatedAt = bookmark.CreatedAt
-            };
-        }
+            BookId = bookmark.BookId,
+            BookTitle = bookmark.Book.Title,
+            CoverImageUrl = bookmark.Book.CoverImageUrl,
+            Notes = bookmark.Notes,
+            CreatedAt = bookmark.CreatedAt
+        };
     }
 }

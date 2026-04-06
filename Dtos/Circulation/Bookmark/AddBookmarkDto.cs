@@ -7,8 +7,7 @@ namespace library.Dtos.Circulation.Bookmark
 {
     public class AddBookmarkDto
     {
-        public string UserId {get; set;} = string.Empty;
-        public int BookId {get; set;}
-        public string? Notes {get; set;}
+        public int BookId { get; set; }
+        public string? Notes { get; set; }
     }
 }

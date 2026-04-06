@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using library.Data;
 
@@ -11,9 +12,11 @@ using library.Data;
 namespace library.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260401210809_AddUpdatedAtColumns")]
+    partial class AddUpdatedAtColumns
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -282,9 +285,6 @@ namespace library.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.HasIndex("BookId", "UserId")
-                        .IsUnique();
-
                     b.ToTable("Bookmarks", (string)null);
                 });
 
@@ -389,13 +389,11 @@ namespace library.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BookId");
+
                     b.HasIndex("ISBN")
                         .IsUnique()
                         .HasDatabaseName("IX_Editions_ISBN");
-
-                    b.HasIndex("BookId", "EditionNumber")
-                        .IsUnique()
-                        .HasDatabaseName("IX_Editions_BookId_EditionNumber");
 
                     b.ToTable("Editions", (string)null);
                 });
@@ -730,12 +728,6 @@ namespace library.Migrations
 
                     b.Property<DateTime>("ReservationDate")
                         .HasColumnType("datetime2");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
 
                     b.Property<string>("Status")
                         .IsRequired()

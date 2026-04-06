@@ -44,7 +44,7 @@ namespace library.Data.Configurations
                 .HasMaxLength(100);
 
             builder.HasOne(x => x.User)
-                .WithMany(u => u.otps)
+                .WithMany(u => u.Otps)
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 

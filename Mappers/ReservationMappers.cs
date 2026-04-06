@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 using library.Dtos.Circulation.Reservation;
 using library.Models.Entities;
@@ -28,20 +29,20 @@ namespace library.Mappers
             };
         }
 
-        public static ReservationDto ToDto(this Reservation reservation)
+        public static Expression<Func<Reservation, ReservationDto>> ToDto()
         {
-            return new ReservationDto()
+            return r=> new ReservationDto()
             {
-                Id = reservation.Id,
-                BookId = reservation.BookId,
-                UserId = reservation.UserId,
-                UserFullName = reservation.User != null ? $"{reservation.User.FirstName} {reservation.User.LastName}" : string.Empty,
-                BookTitle = reservation.Book?.Title ?? string.Empty, 
-                ItemId = reservation.ItemId,
-                ReservationDate = reservation.ReservationDate,
-                ExpiryDate = reservation.ExpiryDate,
-                Status = reservation.Status.ToString(), 
-                QueuePosition = reservation.QueuePosition
+                Id = r.Id,
+                BookId = r.BookId,
+                UserId = r.UserId,
+                UserFullName = r.User != null ? $"{r.User.FirstName} {r.User.LastName}" : string.Empty,
+                BookTitle = r.Book.Title, 
+                ItemId = r.ItemId,
+                ReservationDate = r.ReservationDate,
+                ExpiryDate = r.ExpiryDate,
+                Status = r.Status.ToString(), 
+                QueuePosition = r.QueuePosition
             };
         }
     }

@@ -30,7 +30,16 @@ namespace library.Services.Implementation
             await _context.Authors.AddAsync(author);
             await _context.SaveChangesAsync();
 
-            return author.ToDto();
+            var bookToReturn = await _context.Authors
+                            .AsNoTracking()
+                            .Where(a => a.Id == author.Id)
+                            .Select(AuthorMapper.ToDto())
+                            .FirstOrDefaultAsync();
+                            
+            if (bookToReturn == null)
+                throw new Exception("Unexpected error occurred while retrieving created author");
+
+            return bookToReturn;
         }
 
         public async Task DeleteAuthorAsync(int id)
@@ -63,15 +72,16 @@ namespace library.Services.Implementation
             var totalCount = await query.CountAsync();
 
             var authors = await query
+                .AsNoTracking()
                 .OrderBy(a => a.FullName)
                 .Skip((queryParams.Page - 1) * queryParams.PageSize)
                 .Take(queryParams.PageSize)
-                .AsNoTracking()
+                .Select(AuthorMapper.ToDto())
                 .ToListAsync();
 
             return new PagedResult<AuthorDto>
             {
-                Items = authors.Select(a => a.ToDto()).ToList(),
+                Items = authors,
                 TotalCount = totalCount,
                 Page = queryParams.Page,
                 PageSize = queryParams.PageSize
@@ -80,15 +90,11 @@ namespace library.Services.Implementation
 
         public async Task<AuthorDetailDto?> GetAuthorByIdAsync(int id)
         {
-            var author = await _context.Authors
-                        .Include(a => a.BookAuthors)
-                            .ThenInclude(ba => ba.Book)
-                .FirstOrDefaultAsync(a => a.Id == id);
-
-            if (author == null)
-                return null;
-
-            return author.ToDetailDto();
+            return await _context.Authors
+                            .AsNoTracking()
+                            .Where(b => b.Id == id)
+                            .Select(AuthorMapper.ToDetailDto())
+                            .FirstOrDefaultAsync();
         }
 
         public async Task<AuthorDetailDto> UpdateAuthorAsync(int id, AuthorUpdateDto dto)
@@ -116,7 +122,16 @@ namespace library.Services.Implementation
 
             await _context.SaveChangesAsync();
 
-            return author.ToDetailDto();
+            var authorToReturn = await _context.Authors
+                            .AsNoTracking()
+                            .Where(b => b.Id == id)
+                            .Select(AuthorMapper.ToDetailDto())
+                            .FirstOrDefaultAsync();
+
+            if (authorToReturn == null)
+                throw new Exception("Unexpected error occurred while retrieving updated author");
+
+            return authorToReturn;
         }
 
     }

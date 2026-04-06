@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using library.Dtos.Catalog.Edition;
 using library.Dtos.Catalog.Item;
 using library.Dtos.Catalog.Publisher;
+using library.Dtos.Common;
 
 namespace library.Services.Interface
 {
@@ -12,19 +13,19 @@ namespace library.Services.Interface
     {
         
     // Editions
-    Task<IEnumerable<EditionDto>> GetEditionsByBookAsync(int bookId);
+    Task<PagedResult<EditionDto>> GetEditionsByBookAsync(int bookId, EditionQueryParams queryParams);
     Task<EditionDto?> GetEditionByIdAsync(int id);
     Task<EditionDto> CreateEditionAsync(EditionCreateDto dto);
     Task<EditionDto> UpdateEditionAsync(int id, EditionUpdateDto dto);
     Task DeleteEditionAsync(int id);
 
     // Items
-    Task<IEnumerable<ItemDto>> GetItemsByEditionAsync(int editionId);
-    Task<IEnumerable<ItemDto>> GetItemsByBookAsync(int bookId);
+    Task<PagedResult<ItemDto>> GetItemsByEditionAsync(int editionId, ItemQueryParams queryParams);
+    Task<PagedResult<ItemDto>> GetItemsByBookAsync(int bookId, ItemQueryParams queryParams);
     Task<ItemDto?> GetItemByIdAsync(int id);
     Task<ItemDto> CreateItemAsync(ItemCreateDto dto);
     Task<ItemDto> UpdateItemAsync(int id, ItemUpdateDto dto);
     Task DeleteItemAsync(int id);
-    Task<IEnumerable<ItemDto>> GetAvailableItemsAsync(int editionId);
+    Task<PagedResult<ItemDto>> GetAvailableItemsAsync(int editionId, ItemQueryParams queryParams);
     }
 }

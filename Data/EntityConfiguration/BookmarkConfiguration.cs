@@ -14,22 +14,27 @@ namespace library.Data.EntityConfiguration
         {
             builder.ToTable("Bookmarks");
 
-            builder.HasKey(bm=>new {bm.BookId, bm.UserId});
+            builder.HasKey(bm => new { bm.BookId, bm.UserId });
 
-            builder.Property(bm=>bm.Notes)
+            builder.Property(bm => bm.Notes)
                     .HasMaxLength(500)
                     .IsRequired(false);
-            
-            builder.HasOne(bm=>bm.Book)
-                    .WithMany(b=>b.Bookmarks)
-                    .HasForeignKey(bm=>bm.BookId)
+
+            builder.HasOne(bm => bm.Book)
+                    .WithMany(b => b.Bookmarks)
+                    .HasForeignKey(bm => bm.BookId)
                     .OnDelete(DeleteBehavior.Cascade);
 
-            builder.HasOne(bm=>bm.User)
-                    .WithMany(u=>u.Bookmarks)
-                    .HasForeignKey(bm=>bm.UserId)
+            builder.HasOne(bm => bm.User)
+                    .WithMany(u => u.Bookmarks)
+                    .HasForeignKey(bm => bm.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
-                    
+
+            builder.HasIndex(bm => new { bm.BookId, bm.UserId })
+                    .IsUnique();
+
+
+            builder.HasQueryFilter(bm => !bm.Book.IsDeleted);
         }
     }
 }

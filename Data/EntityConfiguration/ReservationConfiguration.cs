@@ -40,6 +40,9 @@ namespace library.Data.EntityConfiguration
                 .IsUnique();
 
             builder.HasQueryFilter(r => !r.IsDeleted);
+
+            builder.Property(r => r.RowVersion)
+                .IsRowVersion();
         }
     }
 }

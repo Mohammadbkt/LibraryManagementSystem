@@ -51,11 +51,17 @@ builder.Services.AddIdentity<User, IdentityRole>(options =>
 
 // ─── Configurations ───────────────────────────────────────────────────────────
 var jwtSection = builder.Configuration.GetSection("Jwt");
+var jwtConfig = jwtSection.Get<JwtConfig>();
+
 builder.Services.Configure<JwtConfig>(jwtSection);
 builder.Services.Configure<EmailConfig>(builder.Configuration.GetSection("Email"));
 builder.Services.Configure<OtpConfig>(builder.Configuration.GetSection("Otp"));
 
 // ─── JWT Authentication ───────────────────────────────────────────────────────
+
+if (jwtConfig == null || string.IsNullOrWhiteSpace(jwtConfig.Secret))
+    throw new InvalidOperationException("JWT Secret is not configured");
+
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -75,8 +81,7 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = jwtSection["ValidIssuer"],
         ValidAudience = jwtSection["ValidAudience"],
         IssuerSigningKey = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(jwtSection["Secret"] ??
-                throw new InvalidOperationException("JWT Secret is not configured"))),
+            Encoding.UTF8.GetBytes(jwtConfig.Secret)),
         ClockSkew = TimeSpan.Zero
     };
 });
